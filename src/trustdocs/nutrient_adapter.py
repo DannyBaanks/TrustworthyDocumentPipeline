@@ -37,13 +37,27 @@ class NutrientExtractionAdapter:
             "schema": {
                 "type": "object",
                 "properties": {
-                    "vendor_name": {"type": "string"},
-                    "invoice_number": {"type": "string"},
-                    "issue_date": {"type": "string"},
-                    "currency": {"type": "string"},
-                    "total_amount": {"type": "number"},
-                    "line_items": {"type": "array"},
+                    "vendor_name": {"type": "string", "description": "Invoice vendor name"},
+                    "invoice_number": {"type": "string", "description": "Invoice identifier"},
+                    "issue_date": {"type": "string", "format": "date"},
+                    "currency": {"type": "string", "description": "ISO 4217 currency code"},
+                    "total_amount": {"type": "number", "description": "Final total including tax"},
+                    "line_items": {
+                        "type": "array",
+                        "description": "Rows from the invoice line-item table",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "description": {"type": "string"},
+                                "quantity": {"type": "integer"},
+                                "unit_price": {"type": "number"},
+                                "total": {"type": "number"},
+                            },
+                            "required": ["description", "quantity", "unit_price", "total"],
+                        },
+                    },
                 },
+                "required": ["invoice_number", "total_amount"],
             },
             "parseConfig": {"mode": "structure"},
             "options": {"includeCitations": True},
@@ -55,7 +69,18 @@ class NutrientExtractionAdapter:
             data={"instructions": instructions},
             timeout=self.timeout_seconds,
         )
-        response.raise_for_status()
+        if not response.ok:
+            try:
+                error = response.json()
+                detail = {
+                    "requestId": error.get("requestId"),
+                    "errorMessage": error.get("errorMessage") or error.get("message") or error.get("error"),
+                    "errorDetails": error.get("errorDetails"),
+                }
+                detail = {key: value for key, value in detail.items() if value is not None}
+                raise RuntimeError(f"Nutrient API {response.status_code}: {detail}")
+            except ValueError:
+                raise RuntimeError(f"Nutrient API {response.status_code}: invalid error response")
         if len(response.content) > self.max_response_bytes:
             raise ValueError("Nutrient response exceeds configured limit")
         return self._normalize(response.json())
