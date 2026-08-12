@@ -43,15 +43,17 @@ class WarningDemoDocumentService:
 
 
 class ConsoleReviewer:
-    def __init__(self, approve: bool) -> None:
-        self.approve = approve
+    def __init__(self, decision: str | None) -> None:
+        self.decision = decision
 
     def review(self, extraction: Extraction) -> bool:
         # Do not print extracted values: they may contain sensitive document data.
-        if self.approve:
+        if self.decision == "approve":
             return True
-        answer = input("Review required. Approve extracted document? [y/N] ")
-        return answer.strip().lower() in {"y", "yes"}
+        if self.decision == "reject":
+            return False
+        answer = input("Review required. Choose [A]pprove/[R]eject (default R): ")
+        return answer.strip().lower() in {"a", "approve", "y", "yes"}
 
 
 def _media_type(suffix: str) -> str:
@@ -72,6 +74,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--demo-warning", action="store_true")
+    parser.add_argument("--decision", choices=("approve", "reject"),
+                        help="non-interactive human review decision")
     parser.add_argument("first", nargs="?", help="process document or verify command")
     parser.add_argument("second", nargs="?", help="document/evidence path")
     parser.add_argument("--evidence", type=Path)
@@ -114,7 +118,7 @@ def main() -> int:
                 stream.read(), path.name, _media_type(path.suffix.lower())
             )
         result = DocumentPipeline(
-            NutrientExtractionAdapter(), ConsoleReviewer(approve=False),
+            NutrientExtractionAdapter(), ConsoleReviewer(args.decision),
             rules=(
                 RequiredFieldsRule(("invoice_number", "total_amount")),
                 NonNegativeNumberRule("total_amount", "non-negative-total"),
@@ -133,7 +137,7 @@ def main() -> int:
         with path.open("rb") as stream:
             document = stream.read()
         result = DocumentPipeline(
-            NutrientExtractionAdapter(), ConsoleReviewer(approve=False),
+            NutrientExtractionAdapter(), ConsoleReviewer(args.decision),
             rules=(
                 RequiredFieldsRule(("invoice_number", "total_amount")),
                 NonNegativeNumberRule("total_amount", "non-negative-total"),

@@ -35,6 +35,13 @@ python -m trustdocs.cli --demo-warning
 python -m trustdocs.cli verify document.pdf.evidence.json
 ```
 
+For a non-interactive demo, pass the decision explicitly:
+
+```powershell
+python -m trustdocs.cli process document.pdf --decision reject
+python -m trustdocs.cli process document.pdf --decision approve
+```
+
 ## Design Requirements
 
 - DWS must perform a meaningful core document operation.

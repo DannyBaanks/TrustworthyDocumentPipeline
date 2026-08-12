@@ -1,0 +1,12 @@
+{
+  "schema": "trustdocs.evidence/1",
+  "execution_id": "414d5f9ff99bb27e5882e19a2a50a9337b1c9f203092276059eddbb0c0a7ab2d",
+  "nodes": [
+    {"id": "0083715b2b2ae9bd789684f8a70178f6", "operation": "document", "input_hash": "", "output_hash": "9c7c27fab70d46c37c9db1233b529638bcf2639da2af36cc74790fbf230f6894", "metadata": {"execution_id": "414d5f9ff99bb27e5882e19a2a50a9337b1c9f203092276059eddbb0c0a7ab2d"}, "parent_ids": []},
+    {"id": "9950007e42a58fa4984dcdf6a48d6285", "operation": "nutrient-data-extraction", "input_hash": "9c7c27fab70d46c37c9db1233b529638bcf2639da2af36cc74790fbf230f6894", "output_hash": "20ded749d7207e1f7dd621309da62d122609670c05c548f36060eb0c0b01b671", "metadata": {"field_count": 2, "execution_id": "414d5f9ff99bb27e5882e19a2a50a9337b1c9f203092276059eddbb0c0a7ab2d"}, "parent_ids": ["0083715b2b2ae9bd789684f8a70178f6"]},
+    {"id": "c5099727541b694b191cd81c4e7f761b", "operation": "human_review", "input_hash": "20ded749d7207e1f7dd621309da62d122609670c05c548f36060eb0c0b01b671", "output_hash": "b10381837cf90e6d01928ff993e69aef8e93fe6e78474d9662a155ec6727480a", "metadata": {"execution_id": "414d5f9ff99bb27e5882e19a2a50a9337b1c9f203092276059eddbb0c0a7ab2d"}, "parent_ids": ["9950007e42a58fa4984dcdf6a48d6285"]},
+    {"id": "981a1ff26b01b64fc242e2c877303ffa", "operation": "decision", "input_hash": "c5099727541b694b191cd81c4e7f761b", "output_hash": "b10381837cf90e6d01928ff993e69aef8e93fe6e78474d9662a155ec6727480a", "metadata": {"decision": "REJECTED", "execution_id": "414d5f9ff99bb27e5882e19a2a50a9337b1c9f203092276059eddbb0c0a7ab2d"}, "parent_ids": ["c5099727541b694b191cd81c4e7f761b"]}
+  ],
+  "decision": "REJECTED",
+  "record_sha256": "07bd919f921db4b91dba593b99035ba1c51396555ef79dce346e18291deef5d2"
+}
