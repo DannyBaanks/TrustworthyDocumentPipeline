@@ -134,6 +134,7 @@ def main() -> int:
         "decision": result.decision.status,
         "validation": [finding.status for finding in result.validation],
         "evidence_sha256": result.evidence_sha256,
+        "execution_id": result.evidence.execution_id,
         "evidence_path": str(evidence_path) if not args.demo else None,
     }, indent=2))
     return 0

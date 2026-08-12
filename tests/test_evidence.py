@@ -9,6 +9,19 @@ from trustdocs.evidence import EvidenceRecord, read_record, write_record
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_same_execution_inputs_have_same_identity(self) -> None:
+        first = EvidenceRecord.create(
+            document_hash="doc", operation="extract", configuration={"mode": "structure"},
+            extraction_hash="extract", decision_hash="decision", decision="APPROVED",
+            field_count=1, reviewed=False,
+        )
+        second = EvidenceRecord.create(
+            document_hash="doc", operation="extract", configuration={"mode": "structure"},
+            extraction_hash="extract", decision_hash="decision", decision="APPROVED",
+            field_count=1, reviewed=False,
+        )
+        self.assertEqual(first.execution_id, second.execution_id)
+
     def test_intact_record_is_valid(self) -> None:
         record = EvidenceRecord.create(
             document_hash="doc", operation="extract", configuration={"mode": "structure"},

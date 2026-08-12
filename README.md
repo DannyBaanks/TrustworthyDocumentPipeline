@@ -38,6 +38,8 @@ python -m trustdocs.cli document.pdf
 - Every decision must be verifiable from recorded input and output hashes.
 - Replay is not claimed until the stored evidence is sufficient to reconstruct
   the decision without calling the remote service again.
+- Each run exposes an `execution_id` derived from document hash, operation, and
+  normalized configuration.
 - Secrets must arrive through environment or deployment configuration.
 - No absolute machine path is part of the application contract.
 
