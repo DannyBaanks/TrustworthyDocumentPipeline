@@ -35,6 +35,12 @@ python -m trustdocs.cli --demo-warning
 python -m trustdocs.cli verify document.pdf.evidence.json
 ```
 
+See [`docs/DEMO.md`](docs/DEMO.md) for the offline warning case, sanitized
+evidence verification, and the real Nutrient run.
+
+Continuous integration runs the complete unit suite without requiring an API
+key. The real-service path remains an explicit, optional integration step.
+
 For a non-interactive demo, pass the decision explicitly:
 
 ```powershell
