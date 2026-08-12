@@ -6,6 +6,8 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Protocol
 
+from .evidence import EvidenceRecord, _digest
+
 
 @dataclass(frozen=True, slots=True)
 class FieldValue:
@@ -40,6 +42,7 @@ class PipelineResult:
     reviewed: bool
     approved: bool
     evidence_sha256: str
+    evidence: EvidenceRecord
 
     def to_dict(self) -> dict[str, object]:
         value = asdict(self)
@@ -74,12 +77,29 @@ class DocumentPipeline:
         if not reviewed:
             status = "AUTO_APPROVED"
 
+        extraction_hash = _digest(asdict(extraction))
+        decision_hash = _digest({
+            "status": status,
+            "reviewed": reviewed,
+            "approved": approved,
+        })
+        evidence = EvidenceRecord.create(
+            document_hash=document_hash,
+            operation=self.service.name,
+            configuration={"confidence_threshold": self.confidence_threshold},
+            extraction_hash=extraction_hash,
+            decision_hash=decision_hash,
+            decision=status,
+            field_count=len(extraction.fields),
+            reviewed=reviewed,
+        )
         unsigned = {
             "document_sha256": document_hash,
             "extraction": asdict(extraction),
             "reviewed": reviewed,
             "approved": approved,
             "status": status,
+            "record_sha256": evidence.record_sha256,
         }
         canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
         return PipelineResult(
@@ -89,4 +109,5 @@ class DocumentPipeline:
             reviewed=reviewed,
             approved=approved,
             evidence_sha256=hashlib.sha256(canonical).hexdigest(),
+            evidence=evidence,
         )

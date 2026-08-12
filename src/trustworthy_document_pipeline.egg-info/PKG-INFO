@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: trustworthy-document-pipeline
+Version: 0.1.0
+Summary: Auditable document processing with confidence gates and human review
+License: MIT License
+        
+        Copyright (c) 2026 Trustworthy Document Pipeline contributors
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests<3,>=2.31
+Dynamic: license-file
+
+# Trustworthy Document Pipeline
+
+An auditable document-processing application for the DevNetwork Nutrient DWS
+Challenge.
+
+The pipeline is intentionally small:
+
+```text
+document -> DWS operation -> normalized extraction -> confidence gate
+         -> human review when needed -> replayable evidence
+```
+
+The public core does not contain private infrastructure names, machine paths,
+credentials, or undocumented service endpoints. The DWS connection is an
+explicit adapter configured by the caller.
+
+## Current Status
+
+The repository contains the deterministic pipeline contract, confidence gate,
+evidence chain, a local demo adapter, and an official-contract Nutrient DWS
+adapter. The real network path requires `NUTRIENT_EXTRACTION_API_KEY` and is
+not claimed as executed until a non-sensitive sample document completes it.
+
+## Quick Start
+
+```powershell
+python -m venv .venv
+python -m pip install -e .
+python -m trustdocs.cli --demo
+# Real path: requires NUTRIENT_EXTRACTION_API_KEY
+python -m trustdocs.cli document.pdf
+```
+
+## Design Requirements
+
+- DWS must perform a meaningful core document operation.
+- Low-confidence extraction must stop for human review.
+- Every decision must be replayable from recorded input and output hashes.
+- Secrets must arrive through environment or deployment configuration.
+- No absolute machine path is part of the application contract.
+
+## License
+
+MIT. See `LICENSE`.

@@ -6,6 +6,8 @@ from trustdocs.pipeline import DocumentPipeline, Extraction, FieldValue
 
 
 class Service:
+    name = "test-service"
+
     def __init__(self, confidence: float) -> None:
         self.confidence = confidence
         self.calls = 0

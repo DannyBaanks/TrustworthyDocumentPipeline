@@ -7,7 +7,7 @@ The pipeline is intentionally small:
 
 ```text
 document -> DWS operation -> normalized extraction -> confidence gate
-         -> human review when needed -> replayable evidence
+         -> human review when needed -> verifiable evidence
 ```
 
 The public core does not contain private infrastructure names, machine paths,
@@ -35,7 +35,9 @@ python -m trustdocs.cli document.pdf
 
 - DWS must perform a meaningful core document operation.
 - Low-confidence extraction must stop for human review.
-- Every decision must be replayable from recorded input and output hashes.
+- Every decision must be verifiable from recorded input and output hashes.
+- Replay is not claimed until the stored evidence is sufficient to reconstruct
+  the decision without calling the remote service again.
 - Secrets must arrive through environment or deployment configuration.
 - No absolute machine path is part of the application contract.
 

@@ -1,0 +1,15 @@
+LICENSE
+README.md
+pyproject.toml
+src/trustdocs/__init__.py
+src/trustdocs/cli.py
+src/trustdocs/nutrient_adapter.py
+src/trustdocs/pipeline.py
+src/trustworthy_document_pipeline.egg-info/PKG-INFO
+src/trustworthy_document_pipeline.egg-info/SOURCES.txt
+src/trustworthy_document_pipeline.egg-info/dependency_links.txt
+src/trustworthy_document_pipeline.egg-info/entry_points.txt
+src/trustworthy_document_pipeline.egg-info/requires.txt
+src/trustworthy_document_pipeline.egg-info/top_level.txt
+tests/test_nutrient_adapter.py
+tests/test_pipeline.py
