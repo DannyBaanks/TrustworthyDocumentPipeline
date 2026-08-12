@@ -17,9 +17,9 @@ explicit adapter configured by the caller.
 ## Current Status
 
 The repository contains the deterministic pipeline contract, confidence gate,
-evidence chain, and a local demo adapter. The real Nutrient DWS adapter is the
-next integration step and will only be enabled after its official endpoint and
-credentials are configured.
+evidence chain, a local demo adapter, and an official-contract Nutrient DWS
+adapter. The real network path requires `NUTRIENT_EXTRACTION_API_KEY` and is
+not claimed as executed until a non-sensitive sample document completes it.
 
 ## Quick Start
 
