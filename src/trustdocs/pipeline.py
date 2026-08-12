@@ -1,0 +1,79 @@
+"""Deterministic document pipeline with confidence and evidence gates."""
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import asdict, dataclass
+from typing import Protocol
+
+
+@dataclass(frozen=True, slots=True)
+class Extraction:
+    fields: dict[str, object]
+    confidence: float
+
+
+class DocumentService(Protocol):
+    name: str
+
+    def extract(self, document: bytes) -> Extraction:
+        ...
+
+
+class HumanReviewer(Protocol):
+    def review(self, extraction: Extraction) -> bool:
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineResult:
+    status: str
+    document_sha256: str
+    extraction: Extraction
+    reviewed: bool
+    approved: bool
+    evidence_sha256: str
+
+    def to_dict(self) -> dict[str, object]:
+        value = asdict(self)
+        value["extraction"] = asdict(self.extraction)
+        return value
+
+
+class DocumentPipeline:
+    def __init__(self, service: DocumentService, reviewer: HumanReviewer,
+                 *, confidence_threshold: float = 0.85) -> None:
+        if not 0 <= confidence_threshold <= 1:
+            raise ValueError("confidence_threshold must be between 0 and 1")
+        self.service = service
+        self.reviewer = reviewer
+        self.confidence_threshold = confidence_threshold
+
+    def run(self, document: bytes) -> PipelineResult:
+        document_hash = hashlib.sha256(document).hexdigest()
+        extraction = self.service.extract(document)
+        if not 0 <= extraction.confidence <= 1:
+            raise ValueError("service returned invalid confidence")
+
+        reviewed = extraction.confidence < self.confidence_threshold
+        approved = self.reviewer.review(extraction) if reviewed else True
+        status = "APPROVED" if approved else "REJECTED"
+        if not reviewed:
+            status = "AUTO_APPROVED"
+
+        unsigned = {
+            "document_sha256": document_hash,
+            "extraction": asdict(extraction),
+            "reviewed": reviewed,
+            "approved": approved,
+            "status": status,
+        }
+        canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+        return PipelineResult(
+            status=status,
+            document_sha256=document_hash,
+            extraction=extraction,
+            reviewed=reviewed,
+            approved=approved,
+            evidence_sha256=hashlib.sha256(canonical).hexdigest(),
+        )
