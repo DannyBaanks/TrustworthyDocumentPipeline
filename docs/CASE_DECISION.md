@@ -16,25 +16,40 @@ The demo invoice will contain synthetic values only:
 
 ## Nutrient Operation
 
-Use the official Nutrient Data Extraction API endpoint:
+Use the official Nutrient Data Extraction API endpoint selected for typed
+invoice extraction:
 
 ```text
-POST https://api.nutrient.io/extraction/parse
+POST https://api.nutrient.io/extraction/extract
 ```
 
-The request uploads the local PDF as multipart field `file` and sends:
+The request uploads the local document as multipart field `file` and sends an
+outer `instructions` JSON object containing a schema, parse configuration, and
+citations:
 
 ```json
-{"mode":"structure","output":{"format":"spatial"}}
+{
+  "schema": {"type": "object", "properties": {
+    "vendor_name": {"type": "string"},
+    "invoice_number": {"type": "string"},
+    "issue_date": {"type": "string"},
+    "currency": {"type": "string"},
+    "total_amount": {"type": "number"},
+    "line_items": {"type": "array"}
+  }},
+  "parseConfig": {"mode": "structure"},
+  "options": {"includeCitations": true}
+}
 ```
 
-The API documentation states that spatial output contains document elements
-with confidence, bounds, and page context, including tables and key-value
-regions. This gives the pipeline real source-grounded extraction data without
-inventing confidence values.
+The official extract documentation distinguishes this from
+`/extraction/parse`: `extract` maps a document to typed JSON and returns
+`output.data` plus per-field `output.metadata` citations and confidence. This
+is the better contract for an invoice because the pipeline needs named fields,
+not only general spatial elements.
 
-The official Python client also exposes the same extraction capability through
-`NutrientClient.parse`. The first implementation will use the documented HTTP
+The official Python client also exposes the extraction capability through
+`NutrientClient.parse`; the first implementation uses the documented HTTP
 contract so the request and response remain visible during integration tests.
 
 ## Why This Case
@@ -65,5 +80,7 @@ requires them.
 
 - [Data Extraction API](https://www.nutrient.io/api/data-extraction-api/)
 - [Data Extraction getting started](https://www.nutrient.io/guides/dws-data-extraction/getting-started/)
+- [Extract endpoint](https://www.nutrient.io/guides/dws-data-extraction/extract/)
+- [Citations and confidence](https://www.nutrient.io/guides/dws-data-extraction/extract/citations-and-confidence/)
 - [Invoice extraction](https://www.nutrient.io/api/data-extraction-api/invoices/)
 - [Official Python client](https://github.com/PSPDFKit/nutrient-dws-client-python)

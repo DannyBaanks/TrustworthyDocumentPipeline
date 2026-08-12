@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .pipeline import DocumentPipeline, Extraction, FieldValue
+from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .nutrient_adapter import NutrientExtractionAdapter
 from .evidence import read_record, write_record
 
@@ -13,7 +13,7 @@ from .evidence import read_record, write_record
 class DemoDocumentService:
     name = "demo-document-service"
 
-    def extract(self, document: bytes) -> Extraction:
+    def extract(self, document: Document) -> Extraction:
         return Extraction(
             fields={
                 "document_type": FieldValue("demo", 0.99, {"source": "demo"}),
@@ -40,6 +40,20 @@ class ConsoleReviewer:
         return answer.strip().lower() in {"y", "yes"}
 
 
+def _media_type(suffix: str) -> str:
+    return {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".tif": "image/tiff",
+        ".tiff": "image/tiff",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }[suffix]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--demo", action="store_true")
@@ -51,7 +65,7 @@ def main() -> int:
         parser.error("--demo cannot be combined with a document path")
     if args.demo:
         result = DocumentPipeline(DemoDocumentService(), DemoReviewer()).run(
-            b"deterministic demo document"
+            Document(b"deterministic demo document", "demo.pdf", "application/pdf")
         )
     elif args.first == "verify":
         if not args.second:
@@ -74,7 +88,9 @@ def main() -> int:
         if path.stat().st_size > 10_000_000:
             parser.error("document exceeds 10 MB limit")
         with path.open("rb") as stream:
-            document = stream.read()
+            document = Document(
+                stream.read(), path.name, _media_type(path.suffix.lower())
+            )
         result = DocumentPipeline(
             NutrientExtractionAdapter(), ConsoleReviewer(approve=False)
         ).run(document)

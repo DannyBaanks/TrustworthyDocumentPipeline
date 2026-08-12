@@ -10,6 +10,21 @@ from .evidence import EvidenceRecord, _digest
 
 
 @dataclass(frozen=True, slots=True)
+class Document:
+    content: bytes
+    filename: str
+    media_type: str
+
+    def __post_init__(self) -> None:
+        if not self.content:
+            raise ValueError("document must not be empty")
+        if not self.filename or "/" in self.filename or "\\" in self.filename:
+            raise ValueError("filename must be a basename")
+        if not self.media_type:
+            raise ValueError("media_type is required")
+
+
+@dataclass(frozen=True, slots=True)
 class FieldValue:
     value: object
     confidence: float | None
@@ -25,7 +40,7 @@ class Extraction:
 class DocumentService(Protocol):
     name: str
 
-    def extract(self, document: bytes) -> Extraction:
+    def extract(self, document: Document) -> Extraction:
         ...
 
 
@@ -59,8 +74,8 @@ class DocumentPipeline:
         self.reviewer = reviewer
         self.confidence_threshold = confidence_threshold
 
-    def run(self, document: bytes) -> PipelineResult:
-        document_hash = hashlib.sha256(document).hexdigest()
+    def run(self, document: Document) -> PipelineResult:
+        document_hash = hashlib.sha256(document.content).hexdigest()
         extraction = self.service.extract(document)
         if extraction.document_confidence is not None and not 0 <= extraction.document_confidence <= 1:
             raise ValueError("service returned invalid document confidence")
