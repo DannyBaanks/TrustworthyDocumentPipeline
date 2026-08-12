@@ -45,7 +45,7 @@ class PipelineTests(unittest.TestCase):
         result = DocumentPipeline(Service(0.40), reviewer).run(
             Document(b"doc", "doc.pdf", "application/pdf")
         )
-        self.assertEqual(result.status, "APPROVED")
+        self.assertEqual(result.status, "APPROVED_BY_HUMAN")
         self.assertTrue(result.reviewed)
         self.assertEqual(reviewer.calls, 1)
         self.assertEqual(len(result.evidence_sha256), 64)

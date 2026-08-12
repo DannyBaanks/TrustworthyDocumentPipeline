@@ -8,6 +8,7 @@ from pathlib import Path
 from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .nutrient_adapter import NutrientExtractionAdapter
 from .evidence import read_record, write_record
+from .validation import NonNegativeNumberRule, RequiredFieldsRule
 
 
 class DemoDocumentService:
@@ -17,7 +18,7 @@ class DemoDocumentService:
         return Extraction(
             fields={
                 "document_type": FieldValue("demo", 0.99, {"source": "demo"}),
-                "bytes": FieldValue(len(document), 1.0, {"source": "demo"}),
+                "bytes": FieldValue(len(document.content), 1.0, {"source": "demo"}),
             },
             document_confidence=0.91,
         )
@@ -92,7 +93,11 @@ def main() -> int:
                 stream.read(), path.name, _media_type(path.suffix.lower())
             )
         result = DocumentPipeline(
-            NutrientExtractionAdapter(), ConsoleReviewer(approve=False)
+            NutrientExtractionAdapter(), ConsoleReviewer(approve=False),
+            rules=(
+                RequiredFieldsRule(("invoice_number", "total_amount")),
+                NonNegativeNumberRule("total_amount", "non-negative-total"),
+            ),
         ).run(document)
     elif args.first:
         path = Path(args.first)
@@ -107,7 +112,11 @@ def main() -> int:
         with path.open("rb") as stream:
             document = stream.read()
         result = DocumentPipeline(
-            NutrientExtractionAdapter(), ConsoleReviewer(approve=False)
+            NutrientExtractionAdapter(), ConsoleReviewer(approve=False),
+            rules=(
+                RequiredFieldsRule(("invoice_number", "total_amount")),
+                NonNegativeNumberRule("total_amount", "non-negative-total"),
+            ),
         ).run(document)
     else:
         parser.error("use --demo or provide a document path")
@@ -122,6 +131,8 @@ def main() -> int:
         "field_count": len(result.extraction.fields),
         "reviewed": result.reviewed,
         "approved": result.approved,
+        "decision": result.decision.status,
+        "validation": [finding.status for finding in result.validation],
         "evidence_sha256": result.evidence_sha256,
         "evidence_path": str(evidence_path) if not args.demo else None,
     }, indent=2))

@@ -1,11 +1,19 @@
 """Public document pipeline contracts."""
 
-from .pipeline import Document, DocumentPipeline, FieldValue, Extraction, PipelineResult
+from .pipeline import (
+    DecisionRecord,
+    Document,
+    DocumentPipeline,
+    Extraction,
+    FieldValue,
+    PipelineResult,
+)
 from .nutrient_adapter import NutrientExtractionAdapter
 
 __all__ = [
     "DocumentPipeline",
     "Document",
+    "DecisionRecord",
     "Extraction",
     "FieldValue",
     "NutrientExtractionAdapter",
