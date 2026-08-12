@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from trustdocs.pipeline import DocumentPipeline, Extraction
+from trustdocs.pipeline import DocumentPipeline, Extraction, FieldValue
 
 
 class Service:
@@ -12,7 +12,10 @@ class Service:
 
     def extract(self, document: bytes) -> Extraction:
         self.calls += 1
-        return Extraction({"size": len(document)}, self.confidence)
+        return Extraction(
+            {"size": FieldValue(len(document), self.confidence, {"source": "test"})},
+            self.confidence,
+        )
 
 
 class Reviewer:

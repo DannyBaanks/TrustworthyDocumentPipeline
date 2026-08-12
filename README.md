@@ -27,6 +27,8 @@ credentials are configured.
 python -m venv .venv
 python -m pip install -e .
 python -m trustdocs.cli --demo
+# Real path: requires NUTRIENT_EXTRACTION_API_KEY
+python -m trustdocs.cli document.pdf
 ```
 
 ## Design Requirements

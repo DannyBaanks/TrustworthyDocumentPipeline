@@ -8,9 +8,16 @@ from typing import Protocol
 
 
 @dataclass(frozen=True, slots=True)
+class FieldValue:
+    value: object
+    confidence: float | None
+    provenance: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
 class Extraction:
-    fields: dict[str, object]
-    confidence: float
+    fields: dict[str, FieldValue]
+    document_confidence: float | None
 
 
 class DocumentService(Protocol):
@@ -52,10 +59,16 @@ class DocumentPipeline:
     def run(self, document: bytes) -> PipelineResult:
         document_hash = hashlib.sha256(document).hexdigest()
         extraction = self.service.extract(document)
-        if not 0 <= extraction.confidence <= 1:
-            raise ValueError("service returned invalid confidence")
+        if extraction.document_confidence is not None and not 0 <= extraction.document_confidence <= 1:
+            raise ValueError("service returned invalid document confidence")
+        for name, field in extraction.fields.items():
+            if field.confidence is not None and not 0 <= field.confidence <= 1:
+                raise ValueError(f"service returned invalid confidence for {name}")
 
-        reviewed = extraction.confidence < self.confidence_threshold
+        reviewed = (
+            extraction.document_confidence is None
+            or extraction.document_confidence < self.confidence_threshold
+        )
         approved = self.reviewer.review(extraction) if reviewed else True
         status = "APPROVED" if approved else "REJECTED"
         if not reviewed:
