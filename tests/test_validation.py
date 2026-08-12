@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from trustdocs.pipeline import Extraction, FieldValue
-from trustdocs.validation import NonNegativeNumberRule, RequiredFieldsRule, validate
+from trustdocs.validation import ConfidenceWarningRule, NonNegativeNumberRule, RequiredFieldsRule, validate
 
 
 def extraction(**values: object) -> Extraction:
@@ -29,6 +29,12 @@ class ValidationTests(unittest.TestCase):
             NonNegativeNumberRule("total_amount", "non-negative-total"),
         ))
         self.assertEqual(result[0].status, "FAIL")
+
+    def test_low_confidence_warns(self) -> None:
+        result = validate(extraction(total_amount=1), (
+            ConfidenceWarningRule("total_amount", 0.95, "low-total-confidence"),
+        ))
+        self.assertEqual(result[0].status, "WARNING")
 
 
 if __name__ == "__main__":

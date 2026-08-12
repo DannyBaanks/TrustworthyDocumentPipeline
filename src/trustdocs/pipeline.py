@@ -104,6 +104,7 @@ class DocumentPipeline:
             extraction.document_confidence is None
             or extraction.document_confidence < self.confidence_threshold
             or bool(failed_rules)
+            or any(f.status == "WARNING" for f in findings)
         )
         approved = self.reviewer.review(extraction) if reviewed else True
         if not approved:

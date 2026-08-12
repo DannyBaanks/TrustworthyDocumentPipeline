@@ -8,7 +8,7 @@ from pathlib import Path
 from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .nutrient_adapter import NutrientExtractionAdapter
 from .evidence import read_record, write_record
-from .validation import NonNegativeNumberRule, RequiredFieldsRule
+from .validation import ConfidenceWarningRule, NonNegativeNumberRule, RequiredFieldsRule
 
 
 class DemoDocumentService:
@@ -27,6 +27,19 @@ class DemoDocumentService:
 class DemoReviewer:
     def review(self, extraction: Extraction) -> bool:
         return (extraction.document_confidence or 0) >= 0.5
+
+
+class WarningDemoDocumentService:
+    name = "warning-demo-document-service"
+
+    def extract(self, document: Document) -> Extraction:
+        return Extraction(
+            fields={
+                "invoice_number": FieldValue("DEMO-001", 0.99, {"source": "demo"}),
+                "total_amount": FieldValue(125.0, 0.72, {"source": "demo"}),
+            },
+            document_confidence=0.92,
+        )
 
 
 class ConsoleReviewer:
@@ -58,16 +71,24 @@ def _media_type(suffix: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--demo", action="store_true")
+    parser.add_argument("--demo-warning", action="store_true")
     parser.add_argument("first", nargs="?", help="process document or verify command")
     parser.add_argument("second", nargs="?", help="document/evidence path")
     parser.add_argument("--evidence", type=Path)
     args = parser.parse_args()
-    if args.demo and (args.first or args.second):
+    if args.demo and args.demo_warning:
+        parser.error("--demo and --demo-warning are mutually exclusive")
+    if (args.demo or args.demo_warning) and (args.first or args.second):
         parser.error("--demo cannot be combined with a document path")
     if args.demo:
         result = DocumentPipeline(DemoDocumentService(), DemoReviewer()).run(
             Document(b"deterministic demo document", "demo.pdf", "application/pdf")
         )
+    elif args.demo_warning:
+        result = DocumentPipeline(
+            WarningDemoDocumentService(), DemoReviewer(),
+            rules=(ConfidenceWarningRule("total_amount", 0.85, "review-low-total-confidence"),),
+        ).run(Document(b"deterministic warning document", "warning-demo.pdf", "application/pdf"))
     elif args.first == "verify":
         if not args.second:
             parser.error("verify requires an evidence path")
@@ -122,7 +143,7 @@ def main() -> int:
         parser.error("use --demo or provide a document path")
 
     # Keep CLI output safe by exposing metadata and hashes, not extracted values.
-    if not args.demo and result.evidence:
+    if not args.demo and not args.demo_warning and result.evidence:
         evidence_path = args.evidence or path.with_suffix(path.suffix + ".evidence.json")
         write_record(evidence_path, result.evidence)
     print(json.dumps({
@@ -135,7 +156,9 @@ def main() -> int:
         "validation": [finding.status for finding in result.validation],
         "evidence_sha256": result.evidence_sha256,
         "execution_id": result.evidence.execution_id,
-        "evidence_path": str(evidence_path) if not args.demo else None,
+        "evidence_path": (
+            str(evidence_path) if not args.demo and not args.demo_warning else None
+        ),
     }, indent=2))
     return 0
 

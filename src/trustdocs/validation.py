@@ -52,5 +52,20 @@ class NonNegativeNumberRule:
         return ValidationFinding(self.rule_id, "PASS", f"field is non-negative: {self.field}")
 
 
+@dataclass(frozen=True, slots=True)
+class ConfidenceWarningRule:
+    field: str
+    threshold: float
+    rule_id: str
+
+    def check(self, extraction: Extraction) -> ValidationFinding:
+        field = extraction.fields.get(self.field)
+        if field is None or field.confidence is None:
+            return ValidationFinding(self.rule_id, "WARNING", f"confidence unavailable: {self.field}")
+        if field.confidence < self.threshold:
+            return ValidationFinding(self.rule_id, "WARNING", f"low confidence: {self.field}")
+        return ValidationFinding(self.rule_id, "PASS", f"confidence acceptable: {self.field}")
+
+
 def validate(extraction: "Extraction", rules: tuple[ValidationRule, ...]) -> tuple[ValidationFinding, ...]:
     return tuple(rule.check(extraction) for rule in rules)
