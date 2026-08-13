@@ -1,5 +1,7 @@
 # Trustworthy Document Pipeline
 
+[![tests](https://github.com/DannyBaanks/trustworthy-document-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/DannyBaanks/trustworthy-document-pipeline/actions/workflows/tests.yml)
+
 An auditable document-processing application for the DevNetwork Nutrient DWS
 Challenge. It uses Nutrient's Data Extraction API for structured document
 extraction, validates extracted fields, applies a human review policy, and
@@ -37,6 +39,11 @@ python -m trustdocs.cli verify docs/evidence/approved.json
 
 See [`docs/DEMO.md`](docs/DEMO.md) for the offline cases, sanitized evidence
 verification, and the real Nutrient run.
+
+Every command prints a colored, human-readable summary by default -- status,
+document/evidence hashes, and which validation rules fired, never the
+extracted field values. Pass `--json` for the same data as machine-readable
+output.
 
 Continuous integration runs the complete unit suite without requiring an API
 key. The real-service path remains an explicit, optional integration step: a
