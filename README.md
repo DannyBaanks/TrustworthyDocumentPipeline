@@ -30,18 +30,40 @@ python -m venv .venv
 python -m pip install -e .
 python -m trustdocs.cli --demo
 python -m trustdocs.cli --demo-warning
-# Real path: requires NUTRIENT_EXTRACTION_API_KEY
-"n" | python -m trustdocs.cli process document.pdf
-python -m trustdocs.cli verify document.pdf.evidence.json
+python -m trustdocs.cli --demo-inconsistent
+python -m trustdocs.cli verify docs/evidence/rejected.json
+python -m trustdocs.cli verify docs/evidence/approved.json
 ```
 
-See [`docs/DEMO.md`](docs/DEMO.md) for the offline warning case, sanitized
-evidence verification, and the real Nutrient run.
+See [`docs/DEMO.md`](docs/DEMO.md) for the offline cases, sanitized evidence
+verification, and the real Nutrient run.
 
 Continuous integration runs the complete unit suite without requiring an API
-key. The real-service path remains an explicit, optional integration step.
+key. The real-service path remains an explicit, optional integration step: a
+live test is shipped and skips itself when the key is absent.
 
-For a non-interactive demo, pass the decision explicitly:
+### Real Nutrient run
+
+The repository ships sample documents in `sample/` (see
+[`sample/README.md`](sample/README.md)): a synthetic invoice for the happy
+path and an open-access research paper for the "wrong document type" path.
+
+```powershell
+python -m trustdocs.cli process sample/invoice.pdf --decision approve
+python -m trustdocs.cli verify sample/invoice.pdf.evidence.json
+python -m trustdocs.cli process sample/research-paper.pdf --decision reject
+python -m trustdocs.cli verify sample/research-paper.pdf.evidence.json
+```
+
+Each real call consumes Nutrient API credits (the free tier includes 5,000 per
+month). With a key configured, the live integration suite runs the real
+contract end to end:
+
+```powershell
+python -m unittest tests.test_live_nutrient -v
+```
+
+For a non-interactive decision without reading the output, pass it explicitly:
 
 ```powershell
 python -m trustdocs.cli process document.pdf --decision reject
@@ -61,11 +83,17 @@ python -m trustdocs.cli process document.pdf --decision approve
 - No absolute machine path is part of the application contract.
 
 The `--demo-warning` fixture demonstrates a low-confidence field producing a
-validation warning and human review. The real document path uses the
-`/extraction/extract` endpoint with a typed invoice schema and citations.
+validation warning and human review. The `--demo-inconsistent` fixture
+demonstrates a cross-field arithmetic check that no raw text pipeline can
+perform: it is a concrete reason to use a typed extraction schema instead of
+free-form OCR. The real document path uses the `/extraction/extract` endpoint
+with a typed invoice schema and citations.
 
-Replay is deliberately not advertised: the evidence verifies integrity but
-does not reconstruct the remote extraction without calling Nutrient again.
+Replay is deliberately not advertised for the extraction step: the evidence
+verifies integrity but does not reconstruct the remote extraction without
+calling Nutrient again. What is replayable offline is the *decision*: `verify`
+recomputes the hash chain and reports the recorded decision without any vendor
+call, so an auditor can re-check the outcome without credentials or network.
 
 ## License
 

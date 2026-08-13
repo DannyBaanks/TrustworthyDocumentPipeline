@@ -8,7 +8,7 @@ from pathlib import Path
 from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .nutrient_adapter import NutrientExtractionAdapter
 from .evidence import read_record, write_record
-from .validation import ConfidenceWarningRule, NonNegativeNumberRule, RequiredFieldsRule
+from .validation import ConfidenceWarningRule, LineItemsConsistentRule, NonNegativeNumberRule, RequiredFieldsRule
 
 
 class DemoDocumentService:
@@ -39,6 +39,23 @@ class WarningDemoDocumentService:
                 "total_amount": FieldValue(125.0, 0.72, {"source": "demo"}),
             },
             document_confidence=0.92,
+        )
+
+
+class InconsistentDemoDocumentService:
+    name = "inconsistent-demo-document-service"
+
+    def extract(self, document: Document) -> Extraction:
+        return Extraction(
+            fields={
+                "invoice_number": FieldValue("DEMO-002", 0.99, {"source": "demo"}),
+                "total_amount": FieldValue(118.0, 0.98, {"source": "demo"}),
+                "line_items": FieldValue([
+                    {"description": "Widget A", "quantity": 2, "unit_price": 10.0, "total": 20.0},
+                    {"description": "Widget B", "quantity": 3, "unit_price": 15.0, "total": 45.0},
+                ], 0.98, {"source": "demo"}),
+            },
+            document_confidence=0.95,
         )
 
 
@@ -74,15 +91,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--demo-warning", action="store_true")
+    parser.add_argument("--demo-inconsistent", action="store_true")
     parser.add_argument("--decision", choices=("approve", "reject"),
                         help="non-interactive human review decision")
     parser.add_argument("first", nargs="?", help="process document or verify command")
     parser.add_argument("second", nargs="?", help="document/evidence path")
     parser.add_argument("--evidence", type=Path)
     args = parser.parse_args()
-    if args.demo and args.demo_warning:
-        parser.error("--demo and --demo-warning are mutually exclusive")
-    if (args.demo or args.demo_warning) and (args.first or args.second):
+    if sum(bool(flag) for flag in (args.demo, args.demo_warning, args.demo_inconsistent)) > 1:
+        parser.error("--demo, --demo-warning and --demo-inconsistent are mutually exclusive")
+    if (args.demo or args.demo_warning or args.demo_inconsistent) and (args.first or args.second):
         parser.error("--demo cannot be combined with a document path")
     if args.demo:
         result = DocumentPipeline(DemoDocumentService(), DemoReviewer()).run(
@@ -93,15 +111,25 @@ def main() -> int:
             WarningDemoDocumentService(), DemoReviewer(),
             rules=(ConfidenceWarningRule("total_amount", 0.85, "review-low-total-confidence"),),
         ).run(Document(b"deterministic warning document", "warning-demo.pdf", "application/pdf"))
+    elif args.demo_inconsistent:
+        result = DocumentPipeline(
+            InconsistentDemoDocumentService(), DemoReviewer(),
+            rules=(LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),),
+        ).run(Document(b"deterministic inconsistent document", "inconsistent-demo.pdf", "application/pdf"))
     elif args.first == "verify":
         if not args.second:
             parser.error("verify requires an evidence path")
         try:
-            valid, errors = read_record(Path(args.second)).verify()
+            record = read_record(Path(args.second))
+            valid, errors = record.verify()
         except (OSError, ValueError, KeyError) as exc:
             print(json.dumps({"status": "INVALID", "errors": [str(exc)]}, indent=2))
             return 1
-        print(json.dumps({"status": "VALID" if valid else "INVALID", "errors": errors}, indent=2))
+        print(json.dumps({
+            "status": "VALID" if valid else "INVALID",
+            "decision": record.decision,
+            "errors": errors,
+        }, indent=2))
         return 0 if valid else 1
     elif args.first == "process" and args.second:
         path = Path(args.second)
@@ -147,7 +175,7 @@ def main() -> int:
         parser.error("use --demo or provide a document path")
 
     # Keep CLI output safe by exposing metadata and hashes, not extracted values.
-    if not args.demo and not args.demo_warning and result.evidence:
+    if not any((args.demo, args.demo_warning, args.demo_inconsistent)) and result.evidence:
         evidence_path = args.evidence or path.with_suffix(path.suffix + ".evidence.json")
         write_record(evidence_path, result.evidence)
     print(json.dumps({
@@ -161,7 +189,7 @@ def main() -> int:
         "evidence_sha256": result.evidence_sha256,
         "execution_id": result.evidence.execution_id,
         "evidence_path": (
-            str(evidence_path) if not args.demo and not args.demo_warning else None
+            str(evidence_path) if not any((args.demo, args.demo_warning, args.demo_inconsistent)) else None
         ),
     }, indent=2))
     return 0
