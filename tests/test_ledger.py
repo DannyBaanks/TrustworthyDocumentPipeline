@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from trustdocs.ledger import Ledger, LedgerEntry, verify_ledger
+from trustdocs.ledger import Ledger, verify_ledger
 
 
 class LedgerTests(unittest.TestCase):

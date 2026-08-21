@@ -24,7 +24,7 @@ class EvidenceNode:
 
     @classmethod
     def create(cls, operation: str, input_hash: str, output_hash: str,
-               metadata: dict[str, object], parent_ids: tuple[str, ...] = ()) -> "EvidenceNode":
+               metadata: dict[str, object], parent_ids: tuple[str, ...] = ()) -> EvidenceNode:
         body = {
             "operation": operation,
             "input_hash": input_hash,
@@ -53,7 +53,7 @@ class EvidenceRecord:
     @classmethod
     def create(cls, *, document_hash: str, operation: str, configuration: dict[str, object],
                extraction_hash: str, decision_hash: str, decision: str,
-               field_count: int, reviewed: bool) -> "EvidenceRecord":
+               field_count: int, reviewed: bool) -> EvidenceRecord:
         execution_id = _digest({
             "document_hash": document_hash,
             "operation": operation,

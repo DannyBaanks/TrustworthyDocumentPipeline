@@ -112,7 +112,7 @@ class VendorIndependenceTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_two_different_extractors_write_into_one_valid_chain(self):
-        from trustdocs.cli import DemoDocumentService, DemoReviewer
+        from trustdocs.cli import DemoDocumentService
         from trustdocs.ledger import Ledger, verify_ledger
 
         document = Document(b"Invoice Number: INV-1\nTotal Due: 10.00\n",
@@ -136,7 +136,7 @@ class VendorIndependenceTests(unittest.TestCase):
         If the evidence were identical the record would not actually capture
         what produced the decision.
         """
-        from trustdocs.cli import DemoDocumentService, DemoReviewer
+        from trustdocs.cli import DemoDocumentService
 
         document = Document(b"Invoice Number: INV-1\nTotal Due: 10.00\n",
                             "invoice.pdf", "application/pdf")

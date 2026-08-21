@@ -80,7 +80,7 @@ class NutrientExtractionAdapter:
                 detail = {key: value for key, value in detail.items() if value is not None}
                 raise RuntimeError(f"Nutrient API {response.status_code}: {detail}")
             except ValueError:
-                raise RuntimeError(f"Nutrient API {response.status_code}: invalid error response")
+                raise RuntimeError(f"Nutrient API {response.status_code}: invalid error response") from None
         if len(response.content) > self.max_response_bytes:
             raise ValueError("Nutrient response exceeds configured limit")
         return self._normalize(response.json())

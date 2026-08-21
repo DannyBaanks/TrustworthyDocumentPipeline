@@ -21,7 +21,6 @@ Requires the `local` extra (`pip install -e ".[local]"`) for PDF text.
 from __future__ import annotations
 
 import re
-from typing import Dict
 
 from .pipeline import Document, Extraction, FieldValue
 
@@ -49,7 +48,7 @@ def _to_number(raw: str) -> float | None:
         return None
 
 
-def extract_fields_from_text(text: str) -> Dict[str, FieldValue]:
+def extract_fields_from_text(text: str) -> dict[str, FieldValue]:
     """Pull known fields out of plain text.
 
     Pure and PDF-free so it can be tested directly. Every value carries
@@ -60,7 +59,7 @@ def extract_fields_from_text(text: str) -> Dict[str, FieldValue]:
     no probability behind it, and inventing one would put a fabricated number
     into the evidence chain.
     """
-    fields: Dict[str, FieldValue] = {}
+    fields: dict[str, FieldValue] = {}
     for name, pattern, pattern_id in PATTERNS:
         if name in fields:
             continue

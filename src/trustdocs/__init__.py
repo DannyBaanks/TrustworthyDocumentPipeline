@@ -1,5 +1,6 @@
 """Public document pipeline contracts."""
 
+from .nutrient_adapter import NutrientExtractionAdapter
 from .pipeline import (
     DecisionRecord,
     Document,
@@ -8,7 +9,6 @@ from .pipeline import (
     FieldValue,
     PipelineResult,
 )
-from .nutrient_adapter import NutrientExtractionAdapter
 
 __all__ = [
     "DocumentPipeline",

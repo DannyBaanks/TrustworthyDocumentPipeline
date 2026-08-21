@@ -6,11 +6,16 @@ import json
 import sys
 from pathlib import Path
 
-from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
-from .nutrient_adapter import NutrientExtractionAdapter
 from .evidence import read_record, write_record
+from .nutrient_adapter import NutrientExtractionAdapter
+from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .render import render_pretty
-from .validation import ConfidenceWarningRule, LineItemsConsistentRule, NonNegativeNumberRule, RequiredFieldsRule
+from .validation import (
+    ConfidenceWarningRule,
+    LineItemsConsistentRule,
+    NonNegativeNumberRule,
+    RequiredFieldsRule,
+)
 
 
 class DemoDocumentService:
@@ -301,7 +306,7 @@ def _render_ledger_pretty(outcome: dict) -> str:
     first version routed ledger output through render_pretty and crashed on a
     missing document hash.
     """
-    from .render import GREEN, RED, DIM, RESET, supports_color
+    from .render import DIM, GREEN, RED, RESET, supports_color
     color = supports_color()
     green, red, dim, reset = (GREEN, RED, DIM, RESET) if color else ("", "", "", "")
     ok = outcome["status"] in {"VALID", "OK"}

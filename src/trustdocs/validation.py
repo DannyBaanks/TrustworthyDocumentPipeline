@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 
 if TYPE_CHECKING:
     from .pipeline import Extraction
@@ -20,7 +20,7 @@ class ValidationFinding:
 class ValidationRule(Protocol):
     rule_id: str
 
-    def check(self, extraction: "Extraction") -> ValidationFinding:
+    def check(self, extraction: Extraction) -> ValidationFinding:
         ...
 
 
@@ -29,7 +29,7 @@ class RequiredFieldsRule:
     fields: tuple[str, ...]
     rule_id: str = "required-fields"
 
-    def check(self, extraction: "Extraction") -> ValidationFinding:
+    def check(self, extraction: Extraction) -> ValidationFinding:
         missing = [name for name in self.fields if name not in extraction.fields]
         if missing:
             return ValidationFinding(self.rule_id, "FAIL", f"missing fields: {missing}")
@@ -41,7 +41,7 @@ class NonNegativeNumberRule:
     field: str
     rule_id: str
 
-    def check(self, extraction: "Extraction") -> ValidationFinding:
+    def check(self, extraction: Extraction) -> ValidationFinding:
         field = extraction.fields.get(self.field)
         if field is None:
             return ValidationFinding(self.rule_id, "WARNING", f"field unavailable: {self.field}")
@@ -73,7 +73,7 @@ class LineItemsConsistentRule:
     total_field: str
     rule_id: str
 
-    def check(self, extraction: "Extraction") -> ValidationFinding:
+    def check(self, extraction: Extraction) -> ValidationFinding:
         items = extraction.fields.get(self.items_field)
         total = extraction.fields.get(self.total_field)
         if items is None or total is None:
@@ -88,8 +88,10 @@ class LineItemsConsistentRule:
                 return ValidationFinding(self.rule_id, "FAIL", "line item is not an object")
             quantity = row.get("quantity")
             unit_price = row.get("unit_price")
-            numeric = lambda value: isinstance(value, (int, float)) and not isinstance(value, bool)
-            if not numeric(quantity) or not numeric(unit_price):
+
+            def _is_numeric(v) -> bool:
+                return isinstance(v, (int, float)) and not isinstance(v, bool)
+            if not _is_numeric(quantity) or not _is_numeric(unit_price):
                 return ValidationFinding(self.rule_id, "FAIL", "line item has non-numeric quantity/unit_price")
             computed += quantity * unit_price
         if abs(computed - float(total.value)) > 0.005:
@@ -97,5 +99,5 @@ class LineItemsConsistentRule:
         return ValidationFinding(self.rule_id, "PASS", "line items reconcile with total")
 
 
-def validate(extraction: "Extraction", rules: tuple[ValidationRule, ...]) -> tuple[ValidationFinding, ...]:
+def validate(extraction: Extraction, rules: tuple[ValidationRule, ...]) -> tuple[ValidationFinding, ...]:
     return tuple(rule.check(extraction) for rule in rules)

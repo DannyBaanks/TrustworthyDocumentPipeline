@@ -43,7 +43,7 @@ class LedgerCliTests(unittest.TestCase):
 
     def test_successive_runs_chain(self):
         self._record_three()
-        rows = [json.loads(l) for l in
+        rows = [json.loads(line) for line in
                 self.ledger.read_text(encoding="utf-8").strip().splitlines()]
         self.assertEqual([r["sequence"] for r in rows], [0, 1, 2])
         self.assertEqual(rows[1]["prev_entry_sha256"], rows[0]["entry_sha256"])
@@ -63,7 +63,7 @@ class LedgerCliTests(unittest.TestCase):
 
     def test_verify_detects_tampering_and_says_where(self):
         self._record_three()
-        rows = [json.loads(l) for l in
+        rows = [json.loads(line) for line in
                 self.ledger.read_text(encoding="utf-8").strip().splitlines()]
         rows[1]["decision"] = "AUTO_APPROVED"
         self.ledger.write_text(

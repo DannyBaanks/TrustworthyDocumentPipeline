@@ -126,8 +126,9 @@ class CanonicalJsonTests(unittest.TestCase):
         self.assertEqual(canonical_json({"a": None}), '{"a":null}')
 
     def test_it_matches_the_digest_helper_used_by_the_ledger(self):
-        from trustdocs.evidence import _digest
         import hashlib
+
+        from trustdocs.evidence import _digest
 
         body = {"sequence": 0, "prev_entry_sha256": None, "recorded_at": "2026-01-01",
                 "execution_id": "e", "record_sha256": "a", "document_sha256": "b",
@@ -168,6 +169,7 @@ class BrowserAgreesWithPythonTests(unittest.TestCase):
 
     def _run_node(self, rows) -> dict:
         import subprocess
+
         from trustdocs.console import _SHA256_JS, _VERIFY_JS
 
         script = Path(self._tmp.name) / "check.js"

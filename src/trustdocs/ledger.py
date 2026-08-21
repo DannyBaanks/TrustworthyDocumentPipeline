@@ -27,9 +27,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from .evidence import _digest
 
@@ -100,12 +99,12 @@ class Ledger:
             out = [e for e in out if e.decision == decision]
         return out
 
-    def head(self) -> Optional[str]:
+    def head(self) -> str | None:
         """Hash of the last entry: the value to anchor outside this system."""
         rows = self._raw()
         return rows[-1]["entry_sha256"] if rows else None
 
-    def find_document(self, document_sha256: str) -> Optional[LedgerEntry]:
+    def find_document(self, document_sha256: str) -> LedgerEntry | None:
         """The decision recorded for a document, or None. Never a guess."""
         for entry in reversed(self.entries()):
             if entry.document_sha256 == document_sha256:
@@ -133,7 +132,7 @@ class Ledger:
         rows = self._raw()
         sequence = len(rows)
         prev = rows[-1]["entry_sha256"] if rows else None
-        recorded_at = recorded_at or datetime.now(timezone.utc).isoformat()
+        recorded_at = recorded_at or datetime.now(UTC).isoformat()
 
         entry_sha256 = _digest(LedgerEntry.body(
             sequence, prev, recorded_at, execution_id,

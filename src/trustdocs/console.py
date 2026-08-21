@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import html
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -164,7 +164,7 @@ def render_console(ledger_path: Path | str, *, expected_head: str | None = None)
     data = data.replace("</", "<\\/")
 
     anchor = html.escape(expected_head or "", quote=True)
-    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated = datetime.now(UTC).isoformat(timespec="seconds")
     counts = "".join(
         f'<div class="stat"><span class="stat-n">{count}</span>'
         f'<span class="stat-l">{html.escape(name)}</span></div>'
