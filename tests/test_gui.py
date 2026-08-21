@@ -12,15 +12,22 @@ import os
 # Force offscreen rendering for headless testing
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-from PySide6.QtCore import Qt, QTimer, QEventLoop
-from PySide6.QtWidgets import QApplication
+try:
+    from PySide6.QtCore import Qt, QTimer, QEventLoop
+    from PySide6.QtWidgets import QApplication
 
-# Create app once for all tests
-_app = QApplication.instance() or QApplication(sys.argv)
+    # Create app once for all tests
+    _app = QApplication.instance() or QApplication(sys.argv)
+    HAS_PYSIDE6 = True
+except ImportError:
+    HAS_PYSIDE6 = False
+
+_skip_reason = "PySide6 no instalado — saltando tests de GUI"
 
 SAMPLE = Path(__file__).parent.parent / "sample" / "invoice.pdf"
 
 
+@unittest.skipUnless(HAS_PYSIDE6, _skip_reason)
 class GuiSmokeTests(unittest.TestCase):
     """Smoke tests: verify the GUI starts and key widgets exist."""
 
@@ -67,6 +74,7 @@ class GuiSmokeTests(unittest.TestCase):
         window.close()
 
 
+@unittest.skipUnless(HAS_PYSIDE6, _skip_reason)
 class GuiEndToEndTests(unittest.TestCase):
     """Full end-to-end: open GUI -> select doc -> process -> verify -> tamper."""
 
@@ -265,6 +273,7 @@ class GuiEndToEndTests(unittest.TestCase):
             window.close()
 
 
+@unittest.skipUnless(HAS_PYSIDE6, _skip_reason)
 class GuiWorkerTests(unittest.TestCase):
     """Test the pipeline worker in isolation."""
 
