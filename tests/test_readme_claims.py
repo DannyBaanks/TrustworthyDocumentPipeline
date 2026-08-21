@@ -11,8 +11,6 @@ failure: the fix is to update the README, not to relax the test.
 from __future__ import annotations
 
 import re
-import subprocess
-import sys
 import unittest
 from pathlib import Path
 
@@ -21,16 +19,26 @@ CLAIM = re.compile(r"(\d+)\s*/\s*(\d+)\s+passing")
 
 
 def collected_test_count() -> int:
-    """Ask pytest how many tests exist, without running them."""
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q",
-         "-p", "no:cacheprovider", str(README.parent / "tests")],
-        capture_output=True, text=True, timeout=300)
-    match = re.search(r"(\d+)\s+tests? collected", result.stdout)
-    if match:
-        return int(match.group(1))
-    # Older pytest prints one line per test plus a summary line.
-    return sum(1 for line in result.stdout.splitlines() if "::" in line)
+    """Count the suite with unittest — the way CI actually runs it.
+
+    This used to shell out to `python -m pytest --collect-only`. CI installs
+    only `.[local]` and runs `python -m unittest discover`, so pytest is not
+    present there: the subprocess failed, stdout came back empty, and both the
+    regex and the fallback returned 0.
+
+    The test that exists so nobody writes a number they have not recomputed was
+    therefore comparing against a zero it had invented itself — the exact
+    failure mode it is meant to catch. Counting with unittest needs no
+    dependency and matches the runner.
+    """
+    tests_dir = str(README.parent / "tests")
+    loader = unittest.TestLoader()
+    suite = loader.discover(tests_dir, top_level_dir=tests_dir)
+    if loader.errors:
+        raise AssertionError(
+            "test discovery failed, so any count would be fiction:\n"
+            + "\n".join(loader.errors))
+    return suite.countTestCases()
 
 
 class ReadmeClaimsTests(unittest.TestCase):
