@@ -4,6 +4,12 @@
 
 [![tests](https://github.com/DannyBaanks/trustworthy-document-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/DannyBaanks/trustworthy-document-pipeline/actions/workflows/tests.yml)
 
+![Two commands: an invoice whose line items do not reconcile, and eight tampering attempts](docs/demo.gif)
+
+*An invoice where every field extracted cleanly and the totals still do not add
+up — then eight attempts to tamper with the record, seven caught and the eighth
+declared. Real output, no API key.*
+
 | | |
 |---|---|
 | Offline demos | ✅ No API key needed |
