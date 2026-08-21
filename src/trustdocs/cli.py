@@ -6,12 +6,12 @@ import json
 import sys
 from pathlib import Path
 
+from .attack_demo import run_attack_demo
 from .evidence import read_record, write_record
 from .nutrient_adapter import NutrientExtractionAdapter
 from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
-from .render import render_pretty
-from .attack_demo import run_attack_demo
 from .provider_swap import run_provider_swap
+from .render import render_pretty
 from .validation import (
     ConfidenceWarningRule,
     LineItemsConsistentRule,

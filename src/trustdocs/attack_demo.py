@@ -12,7 +12,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from .evidence import EvidenceNode, EvidenceRecord, read_record, write_record, _digest
+from .evidence import EvidenceNode, EvidenceRecord, read_record, write_record
 from .ledger import Ledger, verify_ledger
 from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .render import BOLD, DIM, GREEN, RED, RESET, YELLOW, supports_color
@@ -90,12 +90,15 @@ def _rewrite_rows(path: Path, rows: list[dict]) -> None:
 def run_attack_demo() -> dict:
     """Run all attack scenarios. Returns a structured result for rendering."""
     color = supports_color()
-    c = lambda txt, col: f"{col}{txt}{RESET}" if color else txt
-    bold = lambda txt: c(txt, BOLD)
-    dim = lambda txt: c(txt, DIM)
-    green = lambda txt: c(txt, GREEN)
-    red = lambda txt: c(txt, RED)
-    yellow = lambda txt: c(txt, YELLOW)
+
+    def c(txt, col):
+        return f"{col}{txt}{RESET}" if color else txt
+
+    def bold(txt):
+        return c(txt, BOLD)
+
+    def dim(txt):
+        return c(txt, DIM)
 
     attacks: list[_Attack] = []
 
@@ -148,7 +151,7 @@ def run_attack_demo() -> dict:
             attacks[-1].errors = ["document hash changed — original evidence no longer matches"]
 
         print(_result_line(doc_mismatch,
-                           f"Document tampering detected: hashes differ",
+                           "Document tampering detected: hashes differ",
                            attacks[-1].errors))
 
         # ── Step 3: Modify the extraction in evidence ──────────────────────
@@ -178,9 +181,9 @@ def run_attack_demo() -> dict:
             attacks.append(_Attack("modify_extraction", "Tamper extraction metadata", True))
             attacks[-1].caught = not valid_ext
             attacks[-1].errors = errors_ext
-            print(_step(f"Changed extraction node metadata (field_count: 1 → 999)"))
-            print(_step(f"Node ID is now invalid because it was computed from original metadata."))
-            print(_result_line(not valid_ext, f"Extraction tampering detected", errors_ext))
+            print(_step("Changed extraction node metadata (field_count: 1 → 999)"))
+            print(_step("Node ID is now invalid because it was computed from original metadata."))
+            print(_result_line(not valid_ext, "Extraction tampering detected", errors_ext))
 
         # ── Step 4: Modify the decision ────────────────────────────────────
         print(_heading("STEP 4: ATTACK — Change the decision field"))
@@ -210,14 +213,14 @@ def run_attack_demo() -> dict:
             attacks[-1].caught = not valid_dec
             attacks[-1].errors = errors_dec
             print(_step(f"Changed decision node: '{record2.decision}' → '{new_decision}'"))
-            print(_step(f"Node ID no longer matches its content."))
-            print(_result_line(not valid_dec, f"Decision tampering detected", errors_dec))
+            print(_step("Node ID no longer matches its content."))
+            print(_result_line(not valid_dec, "Decision tampering detected", errors_dec))
 
         # ── Step 5: Alter a ledger entry ───────────────────────────────────
         print(_heading("STEP 5: ATTACK — Alter a ledger entry"))
 
         ledger_path = tmpdir / "ledger.jsonl"
-        original_head = _build_clean_ledger(ledger_path, 5)
+        _build_clean_ledger(ledger_path, 5)
         rows = _rows_from(ledger_path)
 
         original_decision_row1 = rows[1]["decision"]
@@ -230,7 +233,7 @@ def run_attack_demo() -> dict:
         attacks[-1].errors = errors_led
         print(_step(f"Entry 1: '{original_decision_row1}' → 'FORGED_DECISION'"))
         print(_step("The entry hash no longer matches, and the chain breaks."))
-        print(_result_line(not valid_led, f"Ledger tampering detected", errors_led))
+        print(_result_line(not valid_led, "Ledger tampering detected", errors_led))
 
         # ── Step 6: Delete an intermediate entry ───────────────────────────
         print(_heading("STEP 6: ATTACK — Delete a ledger entry"))
@@ -245,9 +248,9 @@ def run_attack_demo() -> dict:
         attacks.append(_Attack("delete_entry", "Delete a ledger entry", True))
         attacks[-1].caught = not valid_del
         attacks[-1].errors = errors_del
-        print(_step(f"Deleted entry at position 2 (of 5)"))
+        print(_step("Deleted entry at position 2 (of 5)"))
         print(_step("Sequence numbers no longer match and chain links break."))
-        print(_result_line(not valid_del, f"Entry deletion detected", errors_del))
+        print(_result_line(not valid_del, "Entry deletion detected", errors_del))
 
         # ── Step 7: Truncate the tail ──────────────────────────────────────
         print(_heading("STEP 7: LIMITATION — Truncate the tail"))
@@ -261,10 +264,10 @@ def run_attack_demo() -> dict:
         attacks.append(_Attack("truncate_tail", "Truncate tail entries (without anchor)", False))
         attacks[-1].caught = False  # this is the known limitation
         attacks[-1].errors = ["truncated chain still verifies — this is the known gap"]
-        print(_step(f"Original: 5 entries, truncated to 3"))
+        print(_step("Original: 5 entries, truncated to 3"))
         print(_step("The remaining chain is genuinely intact and consecutive."))
         print(_step("No self-contained log can detect this."))
-        print(_result_line(False, f"Truncation indetectable (known limitation)", attacks[-1].errors))
+        print(_result_line(False, "Truncation indetectable (known limitation)", attacks[-1].errors))
 
         # ── Step 8: Publish head, then detect truncation ───────────────────
         print(_heading("STEP 8: PUBLISH HEAD — Now truncation is detectable"))
@@ -279,7 +282,7 @@ def run_attack_demo() -> dict:
                                "Truncation detected via published anchor", True))
         attacks[-1].caught = not valid_anchor
         attacks[-1].errors = errors_anchor
-        print(_result_line(not valid_anchor, f"Truncation detected with anchor", errors_anchor))
+        print(_result_line(not valid_anchor, "Truncation detected with anchor", errors_anchor))
 
         # ── Summary ────────────────────────────────────────────────────────
         print(_heading("SUMMARY"))

@@ -7,15 +7,14 @@ Demonstrates that the evidence layer survives extractor replacement.
 from __future__ import annotations
 
 import hashlib
-import json
 import tempfile
 from pathlib import Path
 
-from .evidence import EvidenceRecord, read_record, write_record, _digest
+from .evidence import write_record
 from .local_adapter import LocalHeuristicAdapter
 from .pipeline import Document, DocumentPipeline
-from .render import BOLD, DIM, GREEN, RED, RESET, supports_color
-from .validation import RequiredFieldsRule, NonNegativeNumberRule
+from .render import BOLD, DIM, GREEN, RESET, supports_color
+from .validation import NonNegativeNumberRule, RequiredFieldsRule
 
 
 class _FakeDWSAdapter:
@@ -42,10 +41,18 @@ class _FakeReviewer:
 def run_provider_swap() -> dict:
     """Run the provider swap demo."""
     color = supports_color()
-    c = lambda txt, col: f"{col}{txt}{RESET}" if color else txt
-    bold = lambda txt: c(txt, BOLD)
-    dim = lambda txt: c(txt, DIM)
-    green = lambda txt: c(txt, GREEN)
+
+    def c(txt, col):
+        return f"{col}{txt}{RESET}" if color else txt
+
+    def bold(txt):
+        return c(txt, BOLD)
+
+    def dim(txt):
+        return c(txt, DIM)
+
+    def green(txt):
+        return c(txt, GREEN)
 
     print(bold("Trustworthy Document Pipeline — Provider Swap Demo"))
     print(dim("Same document, two different extractors, same evidence contract.\n"))
@@ -67,7 +74,7 @@ def run_provider_swap() -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         # ── DWS Path ───────────────────────────────────────────────────────
         print(f"{'=' * 60}")
-        print(f"  EXTRACTOR 1: DWS (Nutrient Data Extraction)")
+        print("  EXTRACTOR 1: DWS (Nutrient Data Extraction)")
         print(f"{'=' * 60}")
         dws = _FakeDWSAdapter()
         result_dws = DocumentPipeline(dws, _FakeReviewer(), rules=rules).run(doc)
@@ -84,7 +91,7 @@ def run_provider_swap() -> dict:
 
         # ── Local Path ─────────────────────────────────────────────────────
         print(f"{'=' * 60}")
-        print(f"  EXTRACTOR 2: Local Heuristic (no API, no network)")
+        print("  EXTRACTOR 2: Local Heuristic (no API, no network)")
         print(f"{'=' * 60}")
         local = LocalHeuristicAdapter()
         result_local = DocumentPipeline(local, _FakeReviewer(), rules=rules).run(doc)
@@ -101,7 +108,7 @@ def run_provider_swap() -> dict:
 
         # ── Comparison ─────────────────────────────────────────────────────
         print(f"{'=' * 60}")
-        print(f"  COMPARISON")
+        print("  COMPARISON")
         print(f"{'=' * 60}")
         print(f"  Same document hash?       {dim('Yes' if doc_hash == doc_hash else 'No')}")
         print(f"  Same extractor name?      {dim('No — different operations')}")

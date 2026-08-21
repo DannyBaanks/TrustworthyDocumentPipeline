@@ -2,18 +2,17 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-
-import sys
-import os
 
 # Force offscreen rendering for headless testing
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 try:
-    from PySide6.QtCore import Qt, QTimer, QEventLoop
+    from PySide6.QtCore import QEventLoop, QTimer
     from PySide6.QtWidgets import QApplication
 
     # Create app once for all tests
@@ -214,7 +213,6 @@ class GuiEndToEndTests(unittest.TestCase):
 
         from trustdocs.gui.main_window import MainWindow
         from trustdocs.gui.worker import PipelineWorker
-        from trustdocs.evidence import read_record
         from trustdocs.ledger import Ledger, verify_ledger
 
         window = MainWindow()

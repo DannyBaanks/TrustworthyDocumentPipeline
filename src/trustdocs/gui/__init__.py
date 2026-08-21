@@ -10,7 +10,6 @@ import sys
 def main() -> int:
     try:
         from PySide6.QtWidgets import QApplication
-        from PySide6.QtCore import Qt
     except ImportError:
         print("PySide6 is required for the GUI.")
         print("Install with: pip install 'trustworthy-document-pipeline[gui]'")

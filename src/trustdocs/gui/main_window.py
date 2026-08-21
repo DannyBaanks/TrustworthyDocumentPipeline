@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal, Slot
-from PySide6.QtGui import QAction, QColor, QFont, QTextCursor
+from PySide6.QtCore import Qt, QThread, Slot
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -13,10 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMenu,
-    QMessageBox,
     QPlainTextEdit,
-    QProgressBar,
     QPushButton,
     QSplitter,
     QStatusBar,
@@ -26,7 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from ..evidence import read_record
-from ..ledger import Ledger
 from .worker import (
     LedgerVerifyWorker,
     PipelineWorker,
@@ -594,9 +590,6 @@ class MainWindow(QMainWindow):
         if not self._evidence_path or not self._evidence_path.exists():
             return
 
-        import json
-        import tempfile
-        import shutil
 
         self._tamper_view.clear()
         self._tamper_view.appendPlainText("=" * 50)

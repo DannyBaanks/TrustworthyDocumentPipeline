@@ -2,24 +2,18 @@
 from __future__ import annotations
 
 import hashlib
-import json
-import traceback
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Signal
 
-from ..evidence import EvidenceRecord, read_record, write_record, _digest
+from ..evidence import read_record, write_record
 from ..ledger import Ledger, verify_ledger
 from ..local_adapter import LocalHeuristicAdapter
 from ..pipeline import Document, DocumentPipeline, Extraction, PipelineResult
 from ..validation import (
-    ConfidenceWarningRule,
-    LineItemsConsistentRule,
     NonNegativeNumberRule,
     RequiredFieldsRule,
-    ValidationFinding,
 )
 
 
