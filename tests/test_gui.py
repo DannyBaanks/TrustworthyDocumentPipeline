@@ -371,9 +371,9 @@ class ExportButtonTests(unittest.TestCase):
     def test_export_becomes_available_once_there_is_a_result(self):
         """The condition its own handler checks is `self._last_result`, so that
         is exactly when the button should be clickable."""
-        from trustdocs.pipeline import Document, DocumentPipeline
         from trustdocs.cli import DemoDocumentService, DemoReviewer
         from trustdocs.gui.worker import ProcessOutcome
+        from trustdocs.pipeline import Document, DocumentPipeline
 
         window = self._window()
         # A real run always has a document selected; the handler reads its
