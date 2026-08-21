@@ -11,6 +11,11 @@ requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dependencies = ["requests>=2.31,<3"]
 
+[project.optional-dependencies]
+# Only the vendor-independent local extractor needs to read PDFs itself;
+# the DWS path sends bytes and gets fields back.
+local = ["pypdf>=4"]
+
 [project.scripts]
 trustdocs = "trustdocs.cli:main"
 

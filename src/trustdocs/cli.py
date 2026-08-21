@@ -98,10 +98,63 @@ def build_parser() -> argparse.ArgumentParser:
                         help="non-interactive human review decision")
     parser.add_argument("first", nargs="?", help="process document or verify command")
     parser.add_argument("second", nargs="?", help="document/evidence path")
+    parser.add_argument("third", nargs="?", help="ledger trace argument")
+    parser.add_argument("--extractor", choices=("nutrient", "local"), default="nutrient",
+                        help="which extraction service to use (local needs no key)")
     parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--ledger", type=Path,
+                        help="append the decision to this ledger, or the ledger to query")
+    parser.add_argument("--expect-head", dest="expect_head",
+                        help="anchor published elsewhere; catches a truncated tail")
     parser.add_argument("--json", action="store_true",
                         help="print raw JSON instead of the formatted summary")
     return parser
+
+
+def _run_ledger_command(args, parser) -> dict[str, object]:
+    """`ledger verify|head|summary|trace <sha>`.
+
+    Kept in one place because every branch returns the same result shape the
+    renderer expects, and because a missing ledger has to fail as a reported
+    outcome rather than a traceback.
+    """
+    from .ledger import Ledger, verify_ledger
+
+    action = args.second
+    if action not in {"verify", "head", "summary", "trace", "console"}:
+        parser.error("ledger requires one of: verify, head, summary, trace, console")
+    if not args.ledger:
+        parser.error("ledger commands require --ledger PATH")
+
+    base = {"kind": "ledger", "_json_requested": args.json, "action": action,
+            "ledger_path": str(args.ledger)}
+
+    if action == "verify":
+        valid, errors = verify_ledger(args.ledger, expected_head=args.expect_head)
+        entries = len(Ledger(args.ledger).entries()) if args.ledger.exists() else 0
+        return {**base, "status": "VALID" if valid else "INVALID",
+                "entries": entries, "errors": errors}
+
+    if action == "head":
+        return {**base, "status": "OK", "head": Ledger(args.ledger).head(), "errors": []}
+
+    if action == "summary":
+        return {**base, "status": "OK", "summary": Ledger(args.ledger).summary(),
+                "errors": []}
+
+    if action == "console":
+        from .console import write_console
+        out = args.evidence or Path("console.html")
+        write_console(args.ledger, out, expected_head=args.expect_head)
+        return {**base, "status": "OK", "console_path": str(out),
+                "entries": len(Ledger(args.ledger).entries()), "errors": []}
+
+    # trace
+    if not args.third:
+        parser.error("ledger trace requires a document sha256")
+    found = Ledger(args.ledger).find_document(args.third)
+    return {**base, "status": "OK", "found": found is not None,
+            "entry": found.to_dict() if found else None, "errors": []}
 
 
 def run(argv: list[str] | None = None) -> dict[str, object]:
@@ -114,6 +167,9 @@ def run(argv: list[str] | None = None) -> dict[str, object]:
         parser.error("--demo, --demo-warning and --demo-inconsistent are mutually exclusive")
     if (args.demo or args.demo_warning or args.demo_inconsistent) and (args.first or args.second):
         parser.error("--demo cannot be combined with a document path")
+
+    if args.first == "ledger":
+        return _run_ledger_command(args, parser)
 
     if args.first == "verify":
         if not args.second:
@@ -163,6 +219,19 @@ def run(argv: list[str] | None = None) -> dict[str, object]:
         evidence_path = args.evidence or path.with_suffix(path.suffix + ".evidence.json")
         write_record(evidence_path, result.evidence)
 
+    # The ledger is what makes a set of decisions auditable rather than a pile
+    # of independently-valid files. Demos append too, so the chain can be shown
+    # end to end without an API key.
+    ledger_entry = None
+    if args.ledger:
+        from .ledger import Ledger
+        ledger_entry = Ledger(args.ledger).append(
+            execution_id=result.evidence.execution_id,
+            record_sha256=result.evidence.record_sha256,
+            document_sha256=result.document_sha256,
+            decision=result.status,
+        ).to_dict()
+
     return {
         "kind": "process",
         "_json_requested": args.json,
@@ -179,6 +248,7 @@ def run(argv: list[str] | None = None) -> dict[str, object]:
         "evidence_sha256": result.evidence_sha256,
         "execution_id": result.evidence.execution_id,
         "evidence_path": str(evidence_path) if evidence_path else None,
+        "ledger_entry": ledger_entry,
     }
 
 
@@ -194,8 +264,14 @@ def _run_real_document(path: Path, args: argparse.Namespace,
         parser.error("document exceeds 10 MB limit")
     with path.open("rb") as stream:
         document = Document(stream.read(), path.name, _media_type(path.suffix.lower()))
+    if args.extractor == "local":
+        from .local_adapter import LocalHeuristicAdapter
+        service = LocalHeuristicAdapter()
+    else:
+        service = NutrientExtractionAdapter()
+
     return DocumentPipeline(
-        NutrientExtractionAdapter(), ConsoleReviewer(args.decision),
+        service, ConsoleReviewer(args.decision),
         rules=(
             RequiredFieldsRule(("invoice_number", "total_amount")),
             NonNegativeNumberRule("total_amount", "non-negative-total"),
@@ -218,6 +294,56 @@ def _render_verify_pretty(outcome: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_ledger_pretty(outcome: dict) -> str:
+    """Render a ledger outcome.
+
+    Kept separate from the process renderer because they share no fields; the
+    first version routed ledger output through render_pretty and crashed on a
+    missing document hash.
+    """
+    from .render import GREEN, RED, DIM, RESET, supports_color
+    color = supports_color()
+    green, red, dim, reset = (GREEN, RED, DIM, RESET) if color else ("", "", "", "")
+    ok = outcome["status"] in {"VALID", "OK"}
+    tint = green if ok else red
+    icon = ("✓" if ok else "✗") if color else ("+" if ok else "!")
+
+    lines = [f"{tint}{icon} ledger {outcome['action']}: {outcome['status']}{reset}",
+             f"  {dim}{outcome['ledger_path']}{reset}"]
+
+    if outcome["action"] == "verify":
+        lines.append(f"  Entries:      {outcome['entries']}")
+    elif outcome["action"] == "head":
+        head = outcome["head"]
+        lines.append(f"  Head:         {head if head else '(empty ledger)'}")
+        if head:
+            lines.append(f"  {dim}Publish this value where the writer cannot reach it.{reset}")
+    elif outcome["action"] == "summary":
+        summary = outcome["summary"]
+        lines.append(f"  Decisions:    {summary['total']}")
+        for name, count in sorted(summary["by_decision"].items()):
+            lines.append(f"    {count:>4}  {name}")
+        if summary["first_recorded_at"]:
+            lines.append(f"  {dim}From {summary['first_recorded_at']}{reset}")
+            lines.append(f"  {dim}To   {summary['last_recorded_at']}{reset}")
+    elif outcome["action"] == "console":
+        lines.append(f"  Entries:      {outcome['entries']}")
+        lines.append(f"  Written to:   {outcome['console_path']}")
+        lines.append(f"  {dim}Open it in a browser; it recomputes every hash itself.{reset}")
+    elif outcome["action"] == "trace":
+        if outcome["found"]:
+            entry = outcome["entry"]
+            lines.append(f"  Decision:     {entry['decision']}")
+            lines.append(f"  Recorded:     {entry['recorded_at']}")
+            lines.append(f"  Entry:        #{entry['sequence']}")
+        else:
+            lines.append("  No decision recorded for that document.")
+
+    for error in outcome.get("errors") or []:
+        lines.append(f"  {'✗' if color else '-'} {error}")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     # Windows consoles/redirected output don't always default to UTF-8;
     # without this, the checkmarks below raise UnicodeEncodeError.
@@ -235,11 +361,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(printable, indent=2))
     elif outcome["kind"] == "verify":
         print(_render_verify_pretty(outcome))
+    elif outcome["kind"] == "ledger":
+        print(_render_ledger_pretty(outcome))
     else:
         print(render_pretty(outcome))
 
-    if outcome["kind"] == "verify":
-        return 0 if outcome["status"] == "VALID" else 1
+    if outcome["kind"] in {"verify", "ledger"}:
+        return 0 if outcome["status"] in {"VALID", "OK"} else 1
     return 0
 
 

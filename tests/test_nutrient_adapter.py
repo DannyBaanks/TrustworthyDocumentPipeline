@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import unittest
 from unittest.mock import Mock, patch
 
@@ -23,9 +24,23 @@ class NutrientAdapterTests(unittest.TestCase):
         self.assertEqual(result.fields["total_amount"].confidence, 0.91)
         self.assertIsNone(result.document_confidence)
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_requires_api_key_without_network_call(self) -> None:
+        """The environment is cleared on purpose.
+
+        Without this the test passed in CI (no key present) and failed on any
+        developer machine with NUTRIENT_EXTRACTION_API_KEY exported, because the
+        constructor falls back to the environment when given an empty key. A
+        test whose result depends on who runs it proves nothing.
+        """
         with self.assertRaises(ValueError):
             NutrientExtractionAdapter(api_key="")
+
+    @patch.dict(os.environ, {"NUTRIENT_EXTRACTION_API_KEY": "from-env"}, clear=True)
+    def test_falls_back_to_the_environment_when_no_key_is_passed(self) -> None:
+        """The fallback is deliberate behaviour, so it gets its own test."""
+        adapter = NutrientExtractionAdapter()
+        self.assertEqual(adapter._api_key, "from-env")
 
     @patch("trustdocs.nutrient_adapter.requests.post")
     def test_preserves_filename_and_media_type(self, post: Mock) -> None:
