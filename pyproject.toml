@@ -19,6 +19,8 @@ local = ["pypdf>=4"]
 tools = ["reportlab>=4"]
 # Running lint + formatting.
 dev = ["ruff>=0.6"]
+# GUI (PySide6 desktop application).
+gui = ["PySide6>=6.6,<7"]
 
 [project.urls]
 Homepage = "https://github.com/DannyBaanks/trustworthy-document-pipeline"

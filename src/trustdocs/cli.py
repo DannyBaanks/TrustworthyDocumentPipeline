@@ -10,6 +10,8 @@ from .evidence import read_record, write_record
 from .nutrient_adapter import NutrientExtractionAdapter
 from .pipeline import Document, DocumentPipeline, Extraction, FieldValue
 from .render import render_pretty
+from .attack_demo import run_attack_demo
+from .provider_swap import run_provider_swap
 from .validation import (
     ConfidenceWarningRule,
     LineItemsConsistentRule,
@@ -172,6 +174,14 @@ def run(argv: list[str] | None = None) -> dict[str, object]:
         parser.error("--demo, --demo-warning and --demo-inconsistent are mutually exclusive")
     if (args.demo or args.demo_warning or args.demo_inconsistent) and (args.first or args.second):
         parser.error("--demo cannot be combined with a document path")
+
+    if args.first == "attack":
+        run_attack_demo()
+        return {"kind": "attack", "_json_requested": False, "status": "OK"}
+
+    if args.first == "swap":
+        run_provider_swap()
+        return {"kind": "swap", "_json_requested": False, "status": "OK"}
 
     if args.first == "ledger":
         return _run_ledger_command(args, parser)
@@ -364,6 +374,10 @@ def main(argv: list[str] | None = None) -> int:
     if json_requested:
         printable = {k: v for k, v in outcome.items() if k != "kind"}
         print(json.dumps(printable, indent=2))
+    elif outcome["kind"] == "attack":
+        pass  # attack demo prints its own output
+    elif outcome["kind"] == "swap":
+        pass  # provider swap demo prints its own output
     elif outcome["kind"] == "verify":
         print(_render_verify_pretty(outcome))
     elif outcome["kind"] == "ledger":

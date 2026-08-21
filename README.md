@@ -4,6 +4,16 @@
 
 [![tests](https://github.com/DannyBaanks/trustworthy-document-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/DannyBaanks/trustworthy-document-pipeline/actions/workflows/tests.yml)
 
+| | |
+|---|---|
+| Offline demos | ✅ No API key needed |
+| Core tests | ✅ 126/126 passing |
+| Live integration | ✅ Skips without credentials |
+| Evidence verifier | ✅ SHA-256 chain |
+| Self-contained auditor | ✅ Single HTML file |
+| Attack demo | ✅ `python -m trustdocs attack` |
+| Provider swap | ✅ `python -m trustdocs swap` |
+
 Built for the **Nutrient DWS Challenge** — DevNetwork [API + Cloud + AI] Hackathon 2026.
 
 > **Nutrient's role in one line:** the DWS Data Extraction API turns a PDF into
@@ -47,6 +57,23 @@ whether the record still matches what was decided.
 
 Change one byte of the document and the chain breaks. Edit the stored evidence
 and the chain breaks. That is the whole point.
+
+## What it guarantees and what it does not
+
+| Property | Status |
+|----------|--------|
+| Document integrity recorded | ✅ |
+| Extraction integrity recorded | ✅ |
+| Decision integrity recorded | ✅ |
+| Tampering detected | ✅ |
+| Reordering detected | ✅ |
+| Insertion detected | ✅ |
+| Tail truncation without anchor | ❌ |
+| Offline extraction replay | ❌ |
+| Offline decision revalidation | ✅ |
+
+This table is what the attack demo proves: run `python -m trustdocs attack`
+to see every row verified automatically.
 
 ## See it in 60 seconds
 
@@ -185,8 +212,6 @@ This is the concrete argument for typed extraction over dumping a page into an
 LLM and hoping: a schema lets you write rules that catch documents where every
 individual field is right and the document as a whole is wrong.
 
-That is also the most common shape of invoice fraud.
-
 ## Who pays for this
 
 Anyone running automated document decisions under an obligation to explain
@@ -196,9 +221,9 @@ them later:
   paying an invoice nobody can later justify approving.
 - **Regulated industries** — insurance, healthcare, financial services — where
   "the model decided" is not an acceptable answer to a regulator.
-- **Anyone deploying document AI in the EU.** The AI Act requires traceability
-  for automated decisions affecting people. A log line saying "approved" does
-  not meet that bar.
+- **Anyone deploying document AI in the EU.** Regulations like the AI Act
+  require traceability for automated decisions. A log line saying "approved"
+  does not meet that bar.
 
 The product is not the extraction; Nutrient does that, and does it well. The
 product is the **evidence layer that sits on top of any extraction service** and
@@ -274,6 +299,30 @@ otherwise would undermine the one this actually solves.
 See [`docs/DEMO.md`](docs/DEMO.md) for the offline cases, sanitized evidence
 verification, and the real Nutrient run, and
 [`docs/CASE_DECISION.md`](docs/CASE_DECISION.md) for the extraction schema.
+
+## Visual Demo
+
+A native GUI wraps the pipeline for non-technical users and hackathon judges.
+
+```sh
+pip install -e ".[gui]"
+python -m trustdocs.gui
+```
+
+The GUI provides:
+
+- **Document selection** — pick a PDF, see its hash
+- **Extractor selector** — switch between Nutrient DWS and local
+- **Pipeline execution** — process with background thread (no UI freeze)
+- **Extraction viewer** — fields, confidence, provenance
+- **Validation viewer** — rules fired, pass/warn/fail status
+- **Decision viewer** — status, reason, confidence gate
+- **Evidence viewer** — full JSON, verification status
+- **Tamper demo** — modifies a copy, shows INVALID detection
+- **Ledger verification** — chain integrity check
+- **Export** — save evidence to any path
+
+The GUI calls the same pipeline API as the CLI. No logic is duplicated.
 
 ## License
 

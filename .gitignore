@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
 *.tmp
 *.log
 evidence/*.json
@@ -9,3 +10,6 @@ evidence/*.json
 *.egg-info/
 *.pdf
 !sample/*.pdf
+build/
+dist/
+*.spec
