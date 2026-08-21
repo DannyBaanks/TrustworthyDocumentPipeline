@@ -433,6 +433,11 @@ class MainWindow(QMainWindow):
         self._last_result = result
         self._evidence_path = Path(outcome.evidence_path) if outcome.evidence_path else None
 
+        # `_on_export` guards on `_last_result`, so this is exactly the moment
+        # the button becomes usable. Without this it never did: the control was
+        # wired to a handler and disabled at startup, and nothing switched it on.
+        self._export_btn.setEnabled(True)
+
         # Update extraction tab
         extraction_data = {
             "extractor": self._extractor_combo.currentText(),

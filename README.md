@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | Offline demos | ✅ No API key needed |
-| Core tests | ✅ 126/126 passing |
+| Core tests | ✅ 142/142 passing |
 | Live integration | ✅ Skips without credentials |
 | Evidence verifier | ✅ SHA-256 chain |
 | Self-contained auditor | ✅ Single HTML file |
