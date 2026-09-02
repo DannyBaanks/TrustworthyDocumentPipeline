@@ -14,6 +14,7 @@ from .provider_swap import run_provider_swap
 from .render import render_pretty
 from .validation import (
     ConfidenceWarningRule,
+    FieldConfidencePolicy,
     LineItemsConsistentRule,
     NonNegativeNumberRule,
     RequiredFieldsRule,
@@ -264,6 +265,7 @@ def run(argv: list[str] | None = None) -> dict[str, object]:
         "execution_id": result.evidence.execution_id,
         "evidence_path": str(evidence_path) if evidence_path else None,
         "ledger_entry": ledger_entry,
+        "review": result.decision.review.to_dict() if result.decision.review else None,
     }
 
 
@@ -290,6 +292,8 @@ def _run_real_document(path: Path, args: argparse.Namespace,
         rules=(
             RequiredFieldsRule(("invoice_number", "total_amount")),
             NonNegativeNumberRule("total_amount", "non-negative-total"),
+            LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),
+            FieldConfidencePolicy(("invoice_number", "total_amount"), 0.85),
         ),
     ).run(document)
 

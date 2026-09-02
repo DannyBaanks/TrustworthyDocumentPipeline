@@ -53,7 +53,7 @@ class GuiSmokeTests(unittest.TestCase):
         from trustdocs.gui.main_window import MainWindow
 
         window = MainWindow()
-        self.assertEqual(window._tabs.count(), 5)
+        self.assertEqual(window._tabs.count(), 6)
         window.close()
 
     def test_select_button_disabled_initially(self):
@@ -341,10 +341,6 @@ class GuiWorkerTests(unittest.TestCase):
         self.assertIn(results[0].result.status, ("APPROVED_BY_HUMAN", "REJECTED"))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 @unittest.skipUnless(HAS_PYSIDE6, _skip_reason)
 class ExportButtonTests(unittest.TestCase):
     """Every button on screen must become reachable at some point.
@@ -399,5 +395,9 @@ class ExportButtonTests(unittest.TestCase):
         _app.processEvents()
         self.assertFalse(window._export_btn.isEnabled())
         window.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 
 from .evidence import EvidenceRecord, _digest
-from .validation import ValidationFinding, ValidationRule, validate
+from .validation import FieldConfidencePolicy, ValidationFinding, ValidationRule, validate
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +41,43 @@ class Extraction:
 
 
 @dataclass(frozen=True, slots=True)
+class ReviewRecord:
+    """Evidence that a human reviewed a specific extraction state.
+
+    The review hash enters the evidence chain, creating a verifiable link:
+    document hash -> extraction hash -> REVIEW_REQUIRED -> human reviewed
+    EXACT extraction hash X -> APPROVED/REJECTED -> review hash -> decision hash.
+
+    This proves not just that a human was involved, but exactly which
+    extraction state the human saw when they made their decision.
+    """
+    review_id: str
+    timestamp: str
+    reviewer: str
+    decision: str
+    reason_code: str
+    extraction_hash: str
+
+    @classmethod
+    def create(cls, *, extraction_hash: str, reviewer: str = "system",
+               decision: str, reason_code: str) -> ReviewRecord:
+        return cls(
+            review_id=uuid.uuid4().hex,
+            timestamp=datetime.now(UTC).isoformat(),
+            reviewer=reviewer,
+            decision=decision,
+            reason_code=reason_code,
+            extraction_hash=extraction_hash,
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+    def content_hash(self) -> str:
+        return _digest(self.to_dict())
+
+
+@dataclass(frozen=True, slots=True)
 class DecisionRecord:
     status: str
     reason: str
@@ -46,6 +85,7 @@ class DecisionRecord:
     confidence: float | None
     human_reviewed: bool
     approved: bool
+    review: ReviewRecord | None = None
 
 
 class DocumentService(Protocol):
@@ -100,12 +140,35 @@ class DocumentPipeline:
 
         findings = validate(extraction, self.rules)
         failed_rules = tuple(f.rule_id for f in findings if f.status == "FAIL")
-        reviewed = (
-            extraction.document_confidence is None
-            or extraction.document_confidence < self.confidence_threshold
-            or bool(failed_rules)
-            or any(f.status == "WARNING" for f in findings)
+
+        # Human review is required when:
+        # 1. Any validation rule FAILs, or
+        # 2. Any validation WARNING fires, or
+        # 3. The FieldConfidencePolicy (if present) reports unknown or low confidence.
+        # The FieldConfidencePolicy is a ValidationRule — it shows up in findings.
+        # When no FieldConfidencePolicy is in the rules, the old behaviour
+        # (document_confidence is None -> review) is preserved for backward compat.
+        has_field_confidence_policy = any(
+            isinstance(rule, FieldConfidencePolicy) for rule in self.rules
         )
+        if has_field_confidence_policy:
+            # New path: rely solely on validation findings.
+            # FAIL or WARNING from any rule -> human review.
+            reviewed = bool(failed_rules) or any(
+                f.status == "WARNING" for f in findings
+            )
+        else:
+            # Legacy path: document_confidence None -> review (backward compat).
+            reviewed = (
+                extraction.document_confidence is None
+                or extraction.document_confidence < self.confidence_threshold
+                or bool(failed_rules)
+                or any(f.status == "WARNING" for f in findings)
+            )
+
+        review_record: ReviewRecord | None = None
+        extraction_hash = _digest(asdict(extraction))
+
         approved = self.reviewer.review(extraction) if reviewed else True
         if not approved:
             status = "REJECTED"
@@ -113,9 +176,15 @@ class DocumentPipeline:
         elif reviewed:
             status = "APPROVED_BY_HUMAN"
             reason = "human review approved extraction"
+            review_record = ReviewRecord.create(
+                extraction_hash=extraction_hash,
+                decision="APPROVED",
+                reason_code="human-approved-extraction",
+            )
         else:
             status = "AUTO_APPROVED"
             reason = "confidence and validation policy passed"
+
         decision = DecisionRecord(
             status=status,
             reason=reason,
@@ -123,9 +192,9 @@ class DocumentPipeline:
             confidence=extraction.document_confidence,
             human_reviewed=reviewed,
             approved=approved,
+            review=review_record,
         )
 
-        extraction_hash = _digest(asdict(extraction))
         decision_hash = _digest({
             "status": status,
             "reviewed": reviewed,
@@ -140,6 +209,7 @@ class DocumentPipeline:
             decision=status,
             field_count=len(extraction.fields),
             reviewed=reviewed,
+            review_hash=review_record.content_hash() if review_record else None,
         )
         unsigned = {
             "document_sha256": document_hash,

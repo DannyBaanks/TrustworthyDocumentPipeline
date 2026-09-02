@@ -54,10 +54,10 @@ Let the output land. Cursor rests.
 
 **Narration:**
 
-> Same pipeline, three documents. This is the clean one. Nutrient's Data
-> Extraction API returns typed fields with confidence scores, validation passes,
-> confidence clears the gate, and it auto-approves. Note the two hashes: the
-> document, and the evidence record for the decision.
+> Same pipeline, three documents. This is the clean one. The extraction returns
+> typed fields with confidence scores, validation passes, confidence clears the
+> gate, and it auto-approves. Note the two hashes: the document, and the
+> evidence record for the decision.
 
 **Production:** highlight the `Document:` and `Evidence:` lines as they are
 mentioned — a soft box, not an animation.
@@ -86,8 +86,8 @@ and let it sit. Then zoom that single line to fill the frame.
 >
 > Free-form OCR cannot make that check. Text has no arithmetic. You need typed
 > fields — line items as numbers, not as a sentence — and that is what the DWS
-> extraction schema gives you. This is the shape most invoice fraud takes: every
-> field individually correct, the document as a whole a lie.
+> extraction schema gives you. Every extracted field can be correct and the
+> document can still be internally inconsistent.
 
 **This is the peak of the video.** Everything before it sets it up; everything
 after it is consequence. If a shot has to be cut for time, it is never this one.
@@ -99,7 +99,7 @@ after it is consequence. If a shot has to be cut for time, it is never this one.
 **On screen:** clear the terminal. Then:
 
 ```sh
-unset NUTRIENT_API_KEY      # on screen, deliberately
+unset NUTRIENT_EXTRACTION_API_KEY      # on screen, deliberately
 python -m trustdocs.cli verify docs/evidence/rejected.json
 ```
 

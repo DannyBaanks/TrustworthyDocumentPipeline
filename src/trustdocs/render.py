@@ -73,5 +73,9 @@ def render_pretty(outcome: dict, *, color_enabled: bool | None = None) -> str:
     lines.append(f"  Execution ID: {outcome['execution_id']}")
     if outcome.get("evidence_path"):
         lines.append(f"  Saved to:     {outcome['evidence_path']}")
+    if outcome.get("review"):
+        review = outcome["review"]
+        lines.append(f"  Review:       {dim}id={review['review_id'][:12]}...{reset}")
+        lines.append(f"                reviewer={review['reviewer']}  decision={review['decision']}")
     lines.append("-" * 34)
     return "\n".join(lines)

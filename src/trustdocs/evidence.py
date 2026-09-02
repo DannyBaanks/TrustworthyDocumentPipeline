@@ -53,7 +53,8 @@ class EvidenceRecord:
     @classmethod
     def create(cls, *, document_hash: str, operation: str, configuration: dict[str, object],
                extraction_hash: str, decision_hash: str, decision: str,
-               field_count: int, reviewed: bool) -> EvidenceRecord:
+               field_count: int, reviewed: bool,
+               review_hash: str | None = None) -> EvidenceRecord:
         execution_id = _digest({
             "document_hash": document_hash,
             "operation": operation,
@@ -70,9 +71,12 @@ class EvidenceRecord:
         parents = [extraction.id]
         nodes = [document, extraction]
         if reviewed:
+            review_metadata: dict[str, object] = {"execution_id": execution_id}
+            if review_hash:
+                review_metadata["review_hash"] = review_hash
             review = EvidenceNode.create(
                 "human_review", extraction.output_hash, decision_hash,
-                {"execution_id": execution_id}, (extraction.id,),
+                review_metadata, (extraction.id,),
             )
             nodes.append(review)
             parents = [review.id]

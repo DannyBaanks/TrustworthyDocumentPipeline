@@ -7,11 +7,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
-from ..evidence import read_record, write_record
+from ..evidence import EvidenceNode, EvidenceRecord, read_record, write_record
 from ..ledger import Ledger, verify_ledger
 from ..local_adapter import LocalHeuristicAdapter
 from ..pipeline import Document, DocumentPipeline, Extraction, PipelineResult
 from ..validation import (
+    FieldConfidencePolicy,
+    LineItemsConsistentRule,
     NonNegativeNumberRule,
     RequiredFieldsRule,
 )
@@ -89,6 +91,8 @@ class PipelineWorker(QObject):
             rules = (
                 RequiredFieldsRule(("invoice_number", "total_amount")),
                 NonNegativeNumberRule("total_amount", "non-negative-total"),
+                LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),
+                FieldConfidencePolicy(("invoice_number", "total_amount"), 0.85),
             )
 
             trace.append("Running pipeline...")
@@ -211,3 +215,68 @@ class LedgerVerifyWorker(QObject):
             self.finished.emit(valid, errors, entries)
         except Exception as exc:
             self.finished.emit(False, [str(exc)], 0)
+
+
+class TamperWorker(QObject):
+    """Runs the tamper demo in a background thread, streaming each step."""
+
+    step_line = Signal(str)
+    finished = Signal(bool, bool, list)  # (original_valid, tampered_valid, tamper_errors)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._evidence_path: Path | None = None
+
+    def set_params(self, evidence_path: Path):
+        self._evidence_path = evidence_path
+
+    @staticmethod
+    def build_tampered_copy(record: EvidenceRecord) -> EvidenceRecord:
+        body = record.to_dict()
+        nodes = body["nodes"]
+        if nodes:
+            nodes[0]["operation"] = "TAMPERED_" + nodes[0].get("operation", "unknown")
+        body["decision"] = "TAMPERED"
+        tampered_nodes = tuple(EvidenceNode(**node) for node in nodes)
+        return EvidenceRecord(
+            body["execution_id"], tampered_nodes, body["decision"], body["record_sha256"]
+        )
+
+    def run(self):
+        try:
+            record = read_record(self._evidence_path)
+
+            self.step_line.emit("=" * 50)
+            self.step_line.emit("  TAMPER DEMO")
+            self.step_line.emit("=" * 50)
+            self.step_line.emit("")
+            self.step_line.emit("Step 1: Verify original evidence")
+            original_valid, _ = record.verify()
+            self.step_line.emit(f"  Result: {'VALID' if original_valid else 'INVALID'}")
+            self.step_line.emit("")
+
+            self.step_line.emit("Step 2: Create tampered copy (flip operation + decision)")
+            tampered = self.build_tampered_copy(record)
+            self.step_line.emit("")
+
+            self.step_line.emit("Step 3: Verify tampered evidence")
+            tampered_valid, tamper_errors = tampered.verify()
+            self.step_line.emit(f"  Result: {'VALID' if tampered_valid else 'INVALID'}")
+            for err in tamper_errors:
+                self.step_line.emit(f"  x {err}")
+            self.step_line.emit("")
+
+            self.step_line.emit("=" * 50)
+            self.step_line.emit("  SUMMARY")
+            self.step_line.emit(f"  Original:  {'VALID' if original_valid else 'INVALID'}")
+            self.step_line.emit(f"  Tampered:  {'VALID' if tampered_valid else 'INVALID'}")
+            if original_valid and not tampered_valid:
+                self.step_line.emit("  OK tamper-evident: alteration is detected.")
+            elif not original_valid:
+                self.step_line.emit("  WARNING original evidence already fails verification.")
+            else:
+                self.step_line.emit("  UNEXPECTED: tampered copy passed verification.")
+            self.finished.emit(original_valid, tampered_valid, tamper_errors)
+        except Exception as exc:
+            self.step_line.emit(f"ERROR: {exc}")
+            self.finished.emit(False, False, [str(exc)])

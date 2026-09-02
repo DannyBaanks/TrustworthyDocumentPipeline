@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Slot
+from PySide6.QtCore import Qt, QThread, QTimer, Slot
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSplitter,
@@ -22,11 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..evidence import read_record
+from ..evidence import write_record
 from .worker import (
     LedgerVerifyWorker,
     PipelineWorker,
     ProcessOutcome,
+    TamperWorker,
     VerifyWorker,
 )
 
@@ -138,6 +140,12 @@ class MainWindow(QMainWindow):
 
         self._worker_thread: QThread | None = None
         self._worker: PipelineWorker | None = None
+        self._threads: list[QThread] = []
+
+        self._self_test_queue: list = []
+        self._self_test_pass = 0
+        self._self_test_total = 0
+        self._self_test_session = None
 
         self._build_ui()
         self._connect_signals()
@@ -196,7 +204,7 @@ class MainWindow(QMainWindow):
         # ── Main splitter ──────────────────────────────────────────────────
         splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # ── Tabs: Extraction | Validation | Decision | Evidence ────────────
+        # ── Tabs ───────────────────────────────────────────────────────────
         self._tabs = QTabWidget()
 
         self._tabs.addTab(self._build_extraction_tab(), "Extraction")
@@ -204,6 +212,7 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._build_decision_tab(), "Decision")
         self._tabs.addTab(self._build_evidence_tab(), "Evidence")
         self._tabs.addTab(self._build_tamper_tab(), "Tamper Demo")
+        self._tabs.addTab(self._build_diagnostics_tab(), "Diagnostics")
 
         splitter.addWidget(self._tabs)
 
@@ -307,7 +316,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(4, 4, 4, 4)
 
         info = QLabel(
-            "Tamper Demo: modifies a copy of the evidence and verifies it.\n"
+            "Tamper Demo: modifies an in-memory copy of the evidence and verifies it.\n"
             "Original files are never touched."
         )
         info.setStyleSheet(f"color: {COLORS['text_dim']};")
@@ -329,6 +338,37 @@ class MainWindow(QMainWindow):
 
         return widget
 
+    def _build_diagnostics_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        info = QLabel(
+            "Runs every button's code path end-to-end against a disposable document:\n"
+            "selection state machine, pipeline worker, tab population, evidence verify,\n"
+            "tamper detection, ledger write+verify, export and corruption detection.\n"
+            "Your current session is not modified."
+        )
+        info.setStyleSheet(f"color: {COLORS['text_dim']};")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        btn_bar = QHBoxLayout()
+        self._selftest_btn = QPushButton("Run Self-Test")
+        btn_bar.addWidget(self._selftest_btn)
+        btn_bar.addStretch()
+        layout.addLayout(btn_bar)
+
+        self._selftest_view = QPlainTextEdit()
+        self._selftest_view.setReadOnly(True)
+        self._selftest_view.setFont(MONOSPACE)
+        self._selftest_view.setPlaceholderText(
+            "Click Run Self-Test to audit every button behaviour..."
+        )
+        layout.addWidget(self._selftest_view)
+
+        return widget
+
     def _connect_signals(self):
         self._select_btn.clicked.connect(self._on_select)
         self._process_btn.clicked.connect(self._on_process)
@@ -336,6 +376,13 @@ class MainWindow(QMainWindow):
         self._ledger_verify_btn.clicked.connect(self._on_ledger_verify)
         self._export_btn.clicked.connect(self._on_export)
         self._tamper_btn.clicked.connect(self._on_tamper)
+        self._selftest_btn.clicked.connect(self._on_self_test)
+
+    def closeEvent(self, event):
+        for thread in self._threads:
+            thread.quit()
+            thread.wait(2000)
+        event.accept()
 
     def _set_status(self, state: str, message: str = ""):
         if state == "ready":
@@ -359,6 +406,10 @@ class MainWindow(QMainWindow):
                 f"color: {COLORS['green']}; font-weight: bold;"
             )
 
+    def _feedback(self, message: str):
+        self._log.appendPlainText(message)
+        self._status_bar.showMessage(message)
+
     @Slot()
     def _on_select(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -368,26 +419,52 @@ class MainWindow(QMainWindow):
             "Documents (*.pdf *.png *.jpg *.jpeg *.tif *.tiff *.docx *.xlsx *.pptx);;All Files (*)",
         )
         if path:
-            self._document_path = Path(path)
-            self._doc_label.setText(self._document_path.name)
-            self._doc_label.setStyleSheet(f"color: {COLORS['text']};")
-            self._process_btn.setEnabled(True)
-            self._status_bar.showMessage(f"Selected: {self._document_path.name}")
+            self._apply_selected_document(Path(path))
 
-            evidence_path = self._document_path.with_suffix(
-                self._document_path.suffix + ".evidence.json"
-            )
-            if evidence_path.exists():
-                self._evidence_path = evidence_path
-                self._verify_btn.setEnabled(True)
-                self._tamper_btn.setEnabled(True)
-                self._status_bar.showMessage(
-                    f"{self._document_path.name} (evidence exists)"
-                )
+    def _apply_selected_document(self, path: Path):
+        self._document_path = path
+        self._last_result = None
+        self._evidence_path = None
+        self._ledger_path = None
+
+        self._doc_label.setText(path.name)
+        self._doc_label.setStyleSheet(f"color: {COLORS['text']};")
+        self._process_btn.setEnabled(True)
+        self._export_btn.setEnabled(False)
+        self._verify_btn.setEnabled(False)
+        self._tamper_btn.setEnabled(False)
+        self._ledger_verify_btn.setEnabled(False)
+
+        for view in (
+            self._extraction_view,
+            self._validation_view,
+            self._decision_view,
+            self._evidence_view,
+            self._tamper_view,
+        ):
+            view.clear()
+
+        sidecar = path.with_suffix(path.suffix + ".evidence.json")
+        if sidecar.exists():
+            self._evidence_path = sidecar
+            self._verify_btn.setEnabled(True)
+            self._tamper_btn.setEnabled(True)
+
+        ledger = path.parent / "ledger.jsonl"
+        if ledger.exists():
+            self._ledger_path = ledger
+            self._ledger_verify_btn.setEnabled(True)
+
+        self._set_status("ready")
+        message = f"Selected: {path.name}"
+        if self._evidence_path:
+            message += " (evidence exists)"
+        self._status_bar.showMessage(message)
 
     @Slot()
     def _on_process(self):
         if not self._document_path:
+            self._feedback("Select a document first.")
             return
 
         self._set_status("working")
@@ -395,15 +472,14 @@ class MainWindow(QMainWindow):
         self._log.clear()
 
         self._worker = PipelineWorker()
-        self._worker_thread = QThread()
+        self._worker_thread = QThread(self)
+        self._threads.append(self._worker_thread)
         self._worker.moveToThread(self._worker_thread)
 
         self._worker.log_message.connect(self._on_log)
         self._worker.finished.connect(self._on_process_done)
 
-        self._worker_thread.started.connect(
-            lambda: self._worker.run()
-        )
+        self._worker_thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._worker_thread.quit)
 
         self._worker.set_params(
@@ -412,6 +488,7 @@ class MainWindow(QMainWindow):
             decision=self._decision_combo.currentText()
             if self._decision_combo.currentText() != "auto"
             else None,
+            ledger_path=self._document_path.parent / "ledger.jsonl",
         )
 
         self._worker_thread.start()
@@ -433,37 +510,39 @@ class MainWindow(QMainWindow):
         self._last_result = result
         self._evidence_path = Path(outcome.evidence_path) if outcome.evidence_path else None
 
-        # `_on_export` guards on `_last_result`, so this is exactly the moment
-        # the button becomes usable. Without this it never did: the control was
-        # wired to a handler and disabled at startup, and nothing switched it on.
         self._export_btn.setEnabled(True)
 
-        # Update extraction tab
         extraction_data = {
             "extractor": self._extractor_combo.currentText(),
             "document_confidence": result.extraction.document_confidence,
             "fields": {},
         }
         for name, field in result.extraction.fields.items():
-            extraction_data["fields"][name] = {
+            field_info: dict = {
                 "value": field.value,
                 "confidence": field.confidence,
                 "provenance": field.provenance,
             }
+            citation = (field.provenance or {}).get("citation")
+            if citation and isinstance(citation, dict):
+                field_info["citation"] = {
+                    "page": citation.get("page"),
+                    "box": citation.get("box"),
+                    "source": citation.get("source"),
+                }
+            extraction_data["fields"][name] = field_info
         self._extraction_view.setPlainText(
             json.dumps(extraction_data, indent=2, default=str)
         )
 
-        # Update validation tab
         validation_lines = []
         for v in result.validation:
-            icon = {"PASS": "✓", "WARNING": "⚠", "FAIL": "✗"}.get(v.status, "?")
-            validation_lines.append(f"{icon} {v.rule_id} — {v.message}")
+            icon = {"PASS": "OK", "WARNING": "!", "FAIL": "X"}.get(v.status, "?")
+            validation_lines.append(f"{icon} {v.rule_id} - {v.message}")
         if not validation_lines:
             validation_lines.append("No validation rules triggered.")
         self._validation_view.setPlainText("\n".join(validation_lines))
 
-        # Update decision tab
         decision_data = {
             "status": result.status,
             "reason": result.decision.reason,
@@ -472,9 +551,18 @@ class MainWindow(QMainWindow):
             "human_reviewed": result.decision.human_reviewed,
             "approved": result.decision.approved,
         }
+        if result.decision.review:
+            review = result.decision.review
+            decision_data["review"] = {
+                "review_id": review.review_id,
+                "timestamp": review.timestamp,
+                "reviewer": review.reviewer,
+                "decision": review.decision,
+                "reason_code": review.reason_code,
+                "extraction_hash": review.extraction_hash,
+            }
         self._decision_view.setPlainText(json.dumps(decision_data, indent=2))
 
-        # Update evidence tab
         if self._evidence_path and self._evidence_path.exists():
             self._evidence_view.setPlainText(
                 self._evidence_path.read_text(encoding="utf-8")
@@ -482,11 +570,17 @@ class MainWindow(QMainWindow):
             self._verify_btn.setEnabled(True)
             self._tamper_btn.setEnabled(True)
 
-        # Update ledger
-        ledger_path = self._document_path.parent / "ledger.jsonl"
-        if ledger_path.exists():
-            self._ledger_verify_btn.setEnabled(True)
-            self._ledger_path = ledger_path
+        if self._document_path is not None:
+            ledger_dir = self._document_path.parent
+        elif self._evidence_path is not None:
+            ledger_dir = self._evidence_path.parent
+        else:
+            ledger_dir = None
+        if ledger_dir is not None:
+            ledger_path = ledger_dir / "ledger.jsonl"
+            if ledger_path.exists():
+                self._ledger_path = ledger_path
+                self._ledger_verify_btn.setEnabled(True)
 
         status = result.status
         if "REJECT" in status:
@@ -497,19 +591,23 @@ class MainWindow(QMainWindow):
             self._set_status("verified", status)
 
         self._status_bar.showMessage(
-            f"{self._document_path.name} — {status}"
+            f"{self._document_path.name} - {status}"
+            if self._document_path
+            else f"{status}"
         )
 
     @Slot()
     def _on_verify(self):
         if not self._evidence_path or not self._evidence_path.exists():
+            self._feedback("No evidence to verify yet — process a document first.")
             return
 
         self._verify_btn.setEnabled(False)
         self._set_status("working")
 
         self._verify_worker = VerifyWorker()
-        self._verify_thread = QThread()
+        self._verify_thread = QThread(self)
+        self._threads.append(self._verify_thread)
         self._verify_worker.moveToThread(self._verify_thread)
 
         self._verify_worker.finished.connect(self._on_verify_done)
@@ -530,27 +628,28 @@ class MainWindow(QMainWindow):
         else:
             self._set_status("error", "INVALID")
             for err in errors:
-                self._log.appendPlainText(f"  ✗ {err}")
+                self._log.appendPlainText(f"  X {err}")
 
-        # Update evidence tab with verification result
         current = self._evidence_view.toPlainText()
         if valid:
-            self._evidence_view.setPlainText(current + "\n\n✓ VERIFIED — integrity intact")
+            self._evidence_view.setPlainText(current + "\n\nVERIFIED - integrity intact")
         else:
             self._evidence_view.setPlainText(
-                current + "\n\n✗ INVALID — " + "; ".join(errors)
+                current + "\n\nINVALID - " + "; ".join(errors)
             )
 
     @Slot()
     def _on_ledger_verify(self):
         if not self._ledger_path or not self._ledger_path.exists():
+            self._feedback("No ledger found yet — process a document first.")
             return
 
         self._ledger_verify_btn.setEnabled(False)
         self._set_status("working")
 
         self._ledger_worker = LedgerVerifyWorker()
-        self._ledger_thread = QThread()
+        self._ledger_thread = QThread(self)
+        self._threads.append(self._ledger_thread)
         self._ledger_worker.moveToThread(self._ledger_thread)
 
         self._ledger_worker.finished.connect(self._on_ledger_verify_done)
@@ -571,101 +670,123 @@ class MainWindow(QMainWindow):
         else:
             self._set_status("error", "INVALID")
             for err in errors:
-                self._log.appendPlainText(f"  ✗ {err}")
+                self._log.appendPlainText(f"  X {err}")
 
     @Slot()
     def _on_export(self):
         if not self._last_result:
+            self._feedback("Nothing to export yet — process a document first.")
             return
+
+        default = str(self._evidence_path) if self._evidence_path else "evidence.json"
+        if not default.lower().endswith(".json"):
+            default += ".json"
 
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Evidence",
-            str(self._evidence_path) if self._evidence_path else "evidence.json",
+            default,
             "JSON Files (*.json);;All Files (*)",
         )
-        if path:
-            from ..evidence import write_record
+        if not path:
+            return
 
-            write_record(Path(path), self._last_result.evidence)
-            self._status_bar.showMessage(f"Exported to {path}")
+        try:
+            exported = self._export_to(Path(path))
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", f"{type(exc).__name__}: {exc}")
+            return
+
+        self._log.appendPlainText(f"Evidence exported: {exported}")
+        self._status_bar.showMessage(f"Exported to {exported}")
+
+    def _export_to(self, path: Path) -> Path:
+        if path.suffix == "":
+            path = path.with_suffix(".json")
+        write_record(path, self._last_result.evidence)
+        return path
 
     @Slot()
     def _on_tamper(self):
         if not self._evidence_path or not self._evidence_path.exists():
+            self._feedback("No evidence yet — process a document first.")
             return
 
-
+        self._tamper_btn.setEnabled(False)
         self._tamper_view.clear()
-        self._tamper_view.appendPlainText("=" * 50)
-        self._tamper_view.appendPlainText("  TAMPER DEMO")
-        self._tamper_view.appendPlainText("=" * 50)
-        self._tamper_view.appendPlainText("")
+        self._set_status("working")
 
-        try:
-            record = read_record(self._evidence_path)
+        self._tamper_worker = TamperWorker()
+        self._tamper_thread = QThread(self)
+        self._threads.append(self._tamper_thread)
+        self._tamper_worker.moveToThread(self._tamper_thread)
 
-            # Step 1: Verify original
-            self._tamper_view.appendPlainText("Step 1: Verify original evidence")
-            valid, errors = record.verify()
-            status = "VALID" if valid else "INVALID"
-            self._tamper_view.appendPlainText(f"  Result: {status}")
-            self._tamper_view.appendPlainText("")
+        self._tamper_worker.step_line.connect(self._tamper_view.appendPlainText)
+        self._tamper_worker.finished.connect(self._on_tamper_done)
+        self._tamper_worker.set_params(self._evidence_path)
 
-            # Step 2: Create tampered copy
-            self._tamper_view.appendPlainText("Step 2: Create tampered copy (flip 1 byte)")
-            tampered_dict = record.to_dict()
-            nodes = tampered_dict["nodes"]
-            if nodes:
-                node = nodes[0]
-                node["operation"] = "TAMPERED_" + node.get("operation", "unknown")
-            tampered_dict["decision"] = "TAMPERED"
+        self._tamper_thread.started.connect(self._tamper_worker.run)
+        self._tamper_worker.finished.connect(self._tamper_thread.quit)
 
-            # Step 3: Verify tampered
-            self._tamper_view.appendPlainText("Step 3: Verify tampered evidence")
-            from ..evidence import EvidenceNode, EvidenceRecord
+        self._tamper_thread.start()
 
-            tampered_nodes = tuple(
-                EvidenceNode(**n) for n in tampered_dict["nodes"]
-            )
-            tampered_rec = EvidenceRecord(
-                tampered_dict["execution_id"],
-                tampered_nodes,
-                tampered_dict["decision"],
-                tampered_dict["record_sha256"],
-            )
-            valid2, errors2 = tampered_rec.verify()
-            status2 = "VALID" if valid2 else "INVALID"
-            self._tamper_view.appendPlainText(f"  Result: {status2}")
-            if errors2:
-                for err in errors2:
-                    self._tamper_view.appendPlainText(f"  ✗ {err}")
-            self._tamper_view.appendPlainText("")
-
-            # Step 4: Summary
-            self._tamper_view.appendPlainText("=" * 50)
-            self._tamper_view.appendPlainText("  SUMMARY")
-            self._tamper_view.appendPlainText("=" * 50)
-            self._tamper_view.appendPlainText(f"  Original:  {status}")
-            self._tamper_view.appendPlainText(f"  Tampered:  {status2}")
-            self._tamper_view.appendPlainText("")
-            if valid and not valid2:
-                self._tamper_view.appendPlainText(
-                    "  ✓ Tamper-evident: the system correctly detects alteration."
-                )
-            elif not valid and not valid2:
-                self._tamper_view.appendPlainText(
-                    "  Both invalid — original evidence may already be corrupted."
-                )
-            else:
-                self._tamper_view.appendPlainText(
-                    "  ⚠ Unexpected: tampered evidence passed verification."
-                )
-            self._tamper_view.appendPlainText("")
-
-        except Exception as exc:
-            self._tamper_view.appendPlainText(f"ERROR: {exc}")
+    @Slot(bool, bool, list)
+    def _on_tamper_done(self, original_valid: bool, tampered_valid: bool, errors: list):
+        self._tamper_btn.setEnabled(True)
+        if original_valid and not tampered_valid:
+            self._set_status("verified", "tamper detection confirmed")
+        else:
+            self._set_status("error", "unexpected tamper demo result")
 
     @Slot(str)
     def _on_log(self, message: str):
         self._log.appendPlainText(message)
+
+    @Slot()
+    def _on_self_test(self):
+        from .selftest import SelfTestSession
+
+        self._self_test_session = SelfTestSession()
+        self._selftest_btn.setEnabled(False)
+        self._selftest_view.clear()
+        checks = self._self_test_session.checks()
+        self._self_test_queue = list(checks)
+        self._self_test_pass = 0
+        self._self_test_total = len(checks)
+        self._set_status("working", "self-test")
+        self._selftest_view.appendPlainText(
+            f"Auditing {len(checks)} behaviours against a disposable window...\n"
+        )
+        QTimer.singleShot(0, self._run_next_self_test)
+
+    @Slot()
+    def _run_next_self_test(self):
+        from .selftest import run_check
+
+        if not self._self_test_queue:
+            summary = (
+                f"\n{'=' * 50}\n"
+                f"SELF-TEST RESULT: {self._self_test_pass}/{self._self_test_total} passed"
+            )
+            self._selftest_view.appendPlainText(summary)
+            self._selftest_btn.setEnabled(True)
+            self._self_test_session.close()
+            self._self_test_session = None
+            if self._self_test_pass == self._self_test_total:
+                self._set_status("verified", "all self-tests passed")
+                self._status_bar.showMessage("Self-test: all checks passed")
+            else:
+                failed = self._self_test_total - self._self_test_pass
+                self._set_status("error", f"{failed} self-tests failed")
+            return
+
+        check = self._self_test_queue.pop(0)
+        result = run_check(self._self_test_session, check)
+        mark = "PASS" if result.ok else "FAIL"
+        line = f"[{mark}] {result.id} {result.title}"
+        if result.detail:
+            line += f" -- {result.detail}"
+        self._selftest_view.appendPlainText(line)
+        if result.ok:
+            self._self_test_pass += 1
+        QTimer.singleShot(0, self._run_next_self_test)

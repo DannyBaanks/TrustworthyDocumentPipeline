@@ -101,3 +101,51 @@ class LineItemsConsistentRule:
 
 def validate(extraction: Extraction, rules: tuple[ValidationRule, ...]) -> tuple[ValidationFinding, ...]:
     return tuple(rule.check(extraction) for rule in rules)
+
+
+@dataclass(frozen=True, slots=True)
+class FieldConfidencePolicy:
+    """Per-field confidence gate: every required field must have known confidence >= threshold.
+
+    This replaces the fragile ``document_confidence is None`` check.  Nutrient
+    returns per-field confidence but no aggregate score; the adapter correctly
+    returns ``document_confidence=None``.  The old pipeline interpreted that as
+    "always route to human", defeating the purpose of typed extraction with
+    confidence scores.
+
+    The policy does NOT invent an aggregate.  It walks each required field and
+    checks that (a) the field exists, (b) its confidence is known, and
+    (c) its confidence meets the threshold.  If every field passes AND there
+    are no validation failures, the pipeline can auto-approve.
+    """
+
+    required_fields: tuple[str, ...]
+    threshold: float
+    rule_id: str = "field-confidence-gate"
+
+    def check(self, extraction: Extraction) -> ValidationFinding:
+        unknown: list[str] = []
+        low: list[str] = []
+
+        for name in self.required_fields:
+            field = extraction.fields.get(name)
+            if field is None:
+                unknown.append(name)
+                continue
+            if field.confidence is None:
+                unknown.append(name)
+                continue
+            if field.confidence < self.threshold:
+                low.append(name)
+
+        if unknown:
+            return ValidationFinding(
+                self.rule_id, "WARNING",
+                f"confidence unknown for required fields: {unknown}",
+            )
+        if low:
+            return ValidationFinding(
+                self.rule_id, "WARNING",
+                f"low confidence for required fields: {low}",
+            )
+        return ValidationFinding(self.rule_id, "PASS", "all required field confidences meet threshold")

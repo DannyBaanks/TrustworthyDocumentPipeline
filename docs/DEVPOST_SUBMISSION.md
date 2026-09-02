@@ -15,9 +15,25 @@ typed from memory.
 
 ## Nutrient DWS's role (one line, required by the track)
 
-> The DWS Data Extraction API turns a PDF into typed, confidence-scored
-> fields — which is what makes an automated decision checkable instead of a
-> guess about pixels.
+> The DWS Data Extraction API turns a PDF into typed, confidence-scored fields
+> with a source citation per value — which is what makes an automated decision
+> checkable instead of a guess about pixels.
+
+## Where DWS does the heavy lifting (one line, required by the track)
+
+> Extraction is the operation this product cannot hand-wave: DWS returns *typed*
+> fields (line items as arrays of numbers, totals as numbers) with per-field
+> confidence and citations, and that is what lets a rule compute
+> `Σ(quantity × unit_price)` and catch a document whose fields are all right and
+> whose totals do not add up.
+
+---
+
+## The brand
+
+> The product doesn't ask auditors to trust its AI. It doesn't ask judges to
+> trust its business claims either. Measured facts are reproducible. Assumptions
+> are labeled. Unknowns remain unknown. That is the mark of Trustworthy.
 
 ---
 
@@ -51,16 +67,26 @@ one of the scenarios Nutrient names — and both properties are the product here
 not features bolted onto it.
 
 A document goes in. DWS returns typed, confidence-scored fields. Validation
-rules run. Anything below the confidence threshold, or failing a rule, stops for
-a human. And every run emits an evidence record: the SHA-256 of the document, of
-the extraction, and of the decision.
+rules run. Anything that fails a rule, or a required field whose confidence is
+unknown or below threshold, stops for a human. And every run emits an evidence
+record: the SHA-256 of the document, of the extraction, and of the decision.
 
 Months later, `verify` recomputes that chain **offline** — no API key, no
 network, no vendor call — and says whether the record still matches what was
 decided. Change one byte of the document and the chain breaks. Edit the stored
 evidence and the chain breaks.
 
-Three things make it more than a hashing script:
+Five things make it more than a hashing script:
+
+**The confidence gate is honest about what it does not know.** Nutrient returns
+per-field confidence, not one document score — and this pipeline refuses to
+invent an aggregate one, because a single average would hide exactly the field a
+reviewer needed to see. The `FieldConfidencePolicy` checks each required field
+individually: known confidence, above threshold, or a human sees it. The
+vendor-independent local extractor makes the property visible — it has no
+calibrated confidence, so it reports none, and the policy honestly routes every
+such document to a person. The system degrades into caution, not into confident
+nonsense.
 
 **A check no text pipeline can make.** One rule computes `Σ(quantity ×
 unit_price)` and compares it to the stated total. Free-form OCR cannot do this;
@@ -69,13 +95,21 @@ sentence — which is exactly what the DWS extraction schema provides. It catche
 invoices where every individual field is correct and the document as a whole is
 a lie, which is the most common shape of invoice fraud.
 
+**The record says what the human actually saw.** A decision that stops for
+review is not a boolean. The pipeline writes a `ReviewRecord` — review id,
+timestamp, reviewer role, decision, reason code, and the exact extraction hash
+the reviewer was looking at — and hashes it into the evidence chain. Months
+later the system can prove *which exact state* a human reviewed, offline and
+with no vendor call.
+
 **A ledger, not a pile of files.** A single evidence record proves its own
 integrity and nothing about its neighbours: delete one file and every remaining
 one still verifies. So decisions are chained, each entry carrying the hash of
 the one before it. `python -m trustdocs attack` runs eight tampering attempts
-and reports **7/7 detected**, plus one honest limitation — truncating the tail
-of a chain is invisible to any self-contained log, and needs an anchor published
-where the writer cannot reach it. The demo shows the anchor catching it.
+and reports **7/7 detectable attacks caught**, plus one honest limitation —
+truncating the tail of a chain is invisible to any self-contained log, and needs
+an anchor published where the writer cannot reach it. The demo shows the anchor
+catching it.
 
 **An auditor console that does not ask to be trusted.** One self-contained HTML
 file, no server, no network — it opens from a USB stick in a room with no
@@ -133,15 +167,29 @@ Worth noting how that one was found: the module docstring already warned that
 the canonicalisation contract was fragile — and pointed at the wrong risk,
 floats. **Documenting a risk is not the same as testing it.**
 
+**The confidence gate almost sent everything to a human.** Nutrient returns
+per-field confidence and no document score; the adapter correctly returned
+`document_confidence=None`. But the pipeline read `None` as "unknown" and
+routed *every* real document to a human, even when every required field had
+high confidence. The fix was not an average — that would have invented a number
+and hid the field that mattered. It was a `FieldConfidencePolicy` that checks
+each required field individually. A document auto-approves only when every
+required field has known, above-threshold confidence *and* validation passes.
+The gap would have been invisible in the offline demos, which all set a
+document score; only the real path exercised it.
+
 ## Accomplishments that we're proud of
 
-- **139 tests**, and the README's own test count is now verified by one of them,
+- **154 tests**, and the README's own test count is now verified by one of them,
   because a number written by hand is exactly what this project argues against.
-- **7/7 tampering attacks detected**, with the eighth documented as a known
+- **7/7 detectable tampering attacks caught**, with the eighth documented as a known
   limitation rather than hidden.
 - **The console verifies independently.** Nobody has to trust the generator.
 - **Vendor independence demonstrated in code**, with two extractors writing into
   one valid chain.
+- **The record says what the human saw.** A `ReviewRecord` — review id,
+  timestamp, reviewer, and the exact extraction hash reviewed — is hashed into
+  the evidence chain, so the basis of a human decision is provable offline.
 
 ## What we learned
 
@@ -176,7 +224,7 @@ cd trustworthy-document-pipeline
 python -m pip install -e .
 
 python -m trustdocs.cli --demo-inconsistent   # the check OCR cannot make
-python -m trustdocs attack                    # 7/7 tampering attempts caught
+python -m trustdocs attack                    # 7/7 detectable attacks caught
 python -m trustdocs swap                      # same evidence, two extractors
 ```
 

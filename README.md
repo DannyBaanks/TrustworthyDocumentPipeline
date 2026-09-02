@@ -13,8 +13,10 @@ declared. Real output, no API key.*
 | | |
 |---|---|
 | Offline demos | ✅ No API key needed |
-| Core tests | ✅ 142/142 passing |
+| Core tests | ✅ 154/154 passing |
 | Live integration | ✅ Skips without credentials |
+| Honest confidence gate | ✅ Per-field, no aggregate invented |
+| Human review basis | ✅ Review record hashed into the chain |
 | Evidence verifier | ✅ SHA-256 chain |
 | Self-contained auditor | ✅ Single HTML file |
 | Attack demo | ✅ `python -m trustdocs attack` |
@@ -23,8 +25,25 @@ declared. Real output, no API key.*
 Built for the **Nutrient DWS Challenge** — DevNetwork [API + Cloud + AI] Hackathon 2026.
 
 > **Nutrient's role in one line:** the DWS Data Extraction API turns a PDF into
-> typed, confidence-scored fields, which is what makes an automated decision
-> checkable instead of a guess about pixels.
+> typed, confidence-scored fields with source citations, which is what makes an
+> automated decision checkable instead of a guess about pixels.
+
+---
+
+> **Where DWS does the heavy lifting (required by the track):** extraction is
+> the operation this product cannot hand-wave — DWS returns *typed* fields (line
+> items as arrays of numbers, totals as numbers) with per-field confidence and a
+> citation saying where each value came from. That typed, cited output is what
+> lets a rule compute `Σ(quantity × unit_price)` and catch a document whose
+> fields are all individually right and whose totals still do not add up.
+
+---
+
+**The brand, stated plainly.**
+
+> The product doesn't ask auditors to trust its AI. It doesn't ask judges to
+> trust its business claims either. Measured facts are reproducible. Assumptions
+> are labeled. Unknowns remain unknown. That is the mark of Trustworthy.
 
 ---
 
@@ -71,6 +90,7 @@ and the chain breaks. That is the whole point.
 | Document integrity recorded | ✅ |
 | Extraction integrity recorded | ✅ |
 | Decision integrity recorded | ✅ |
+| What a human actually saw (review basis) | ✅ |
 | Tampering detected | ✅ |
 | Reordering detected | ✅ |
 | Insertion detected | ✅ |
@@ -80,6 +100,65 @@ and the chain breaks. That is the whole point.
 
 This table is what the attack demo proves: run `python -m trustdocs attack`
 to see every row verified automatically.
+
+## The confidence gate, done honestly
+
+Nutrient returns **per-field confidence, not one document score** — and this
+pipeline refuses to invent an aggregate one. A single number averaging
+`invoice_number`, `total_amount` and ten line items would hide exactly the field
+the reviewer needed to see.
+
+So the gate is a **`FieldConfidencePolicy`**: every required field must have a
+*known* confidence, and that confidence must clear the threshold. Not an
+average, not a vibe — a per-field check:
+
+```text
+AGGREGATE_CONFIDENCE_INVENTED = FALSE
+
+required fields:
+  invoice_number >= threshold
+  total_amount   >= threshold
+  line_items     >= threshold
+      ↓
+ALL PASS + VALIDATION PASS
+      → AUTO_APPROVE
+
+ANY UNKNOWN / LOW / FAIL
+      → HUMAN_REVIEW
+```
+
+The local extractor makes this visible: a regex has no calibrated probability
+behind it, so it reports **no confidence** — and the policy honestly routes
+every such document to a person. The system degrades into caution, not into
+confident nonsense.
+
+## The evidence chain now records *what the human saw*
+
+A decision that stops for review is no longer a boolean `human_reviewed`. The
+pipeline writes a **`ReviewRecord`** — review id, timestamp, reviewer role,
+decision, reason code, and the **exact extraction hash the reviewer was looking
+at** — and that record's hash enters the evidence chain:
+
+```text
+document hash
+    ↓
+extraction hash
+    ↓
+validation
+    ↓
+REVIEW_REQUIRED
+    ↓
+human reviewed EXACT extraction hash X
+    ↓
+APPROVED / REJECTED
+    ↓
+review hash
+    ↓
+decision hash
+```
+
+The system does not just know a human was involved. It can prove **which exact
+state** that human reviewed — months later, offline, with no vendor call.
 
 ## See it in 60 seconds
 
@@ -99,6 +178,7 @@ Trustworthy Document Pipeline
     ✗ line-items-reconcile -- line item totals do not reconcile with total
   Evidence:     sha256:3cb4b065b4eec4c2...
   Execution ID: 2d33989d3868a5277a2c81c2815fa291c17e395b739ac18b9f4a8e24a5c4858a
+  Review:       id=...  reviewer=system  decision=APPROVED
 ----------------------------------
 ```
 
@@ -295,7 +375,10 @@ otherwise would undermine the one this actually solves.
 ## Design requirements
 
 - DWS performs a meaningful core document operation, not a decorative call.
-- Low-confidence extraction stops for human review.
+- No aggregate confidence is invented: the gate checks each required field's
+  confidence against the threshold, or routes to a human. (`FieldConfidencePolicy`)
+- Every decision that stops for review records what the human actually saw:
+  a review record whose hash enters the evidence chain. (`ReviewRecord`)
 - Every decision is verifiable from recorded input and output hashes.
 - Each run exposes an `execution_id` derived from document hash, operation, and
   normalized configuration.
@@ -320,9 +403,10 @@ The GUI provides:
 - **Document selection** — pick a PDF, see its hash
 - **Extractor selector** — switch between Nutrient DWS and local
 - **Pipeline execution** — process with background thread (no UI freeze)
-- **Extraction viewer** — fields, confidence, provenance
+- **Extraction viewer** — fields, confidence, and the DWS citation (page /
+  source location) behind each value, so a reviewer sees *where* it came from
 - **Validation viewer** — rules fired, pass/warn/fail status
-- **Decision viewer** — status, reason, confidence gate
+- **Decision viewer** — status, reason, confidence gate, and the review record
 - **Evidence viewer** — full JSON, verification status
 - **Tamper demo** — modifies a copy, shows INVALID detection
 - **Ledger verification** — chain integrity check
