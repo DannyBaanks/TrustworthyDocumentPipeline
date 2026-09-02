@@ -89,11 +89,12 @@ such document to a person. The system degrades into caution, not into confident
 nonsense.
 
 **A check no text pipeline can make.** One rule computes `Σ(quantity ×
-unit_price)` and compares it to the stated total. Free-form OCR cannot do this;
-text has no arithmetic. You need typed fields — line items as numbers, not as a
-sentence — which is exactly what the DWS extraction schema provides. It catches
-invoices where every individual field is correct and the document as a whole is
-a lie, which is the most common shape of invoice fraud.
+unit_price)` and compares it to the stated total. Free-form OCR alone does not
+provide the typed line-item structure needed for a deterministic arithmetic
+check. You need typed fields — line items as numbers, not as a sentence — which
+is exactly what the DWS extraction schema provides. It catches invoices where
+every individual field is correct and the document as a whole is internally
+inconsistent.
 
 **The record says what the human actually saw.** A decision that stops for
 review is not a boolean. The pipeline writes a `ReviewRecord` — review id,
@@ -180,7 +181,7 @@ document score; only the real path exercised it.
 
 ## Accomplishments that we're proud of
 
-- **154 tests**, and the README's own test count is now verified by one of them,
+- **156 tests**, and the README's own test count is now verified by one of them,
   because a number written by hand is exactly what this project argues against.
 - **7/7 detectable tampering attacks caught**, with the eighth documented as a known
   limitation rather than hidden.

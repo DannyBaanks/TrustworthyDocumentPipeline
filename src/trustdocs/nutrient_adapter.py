@@ -57,7 +57,7 @@ class NutrientExtractionAdapter:
                         },
                     },
                 },
-                "required": ["invoice_number", "total_amount"],
+                "required": ["invoice_number", "total_amount", "line_items"],
             },
             "parseConfig": {"mode": "structure"},
             "options": {"includeCitations": True},

@@ -72,6 +72,7 @@ class InconsistentDemoDocumentService:
 class ConsoleReviewer:
     def __init__(self, decision: str | None) -> None:
         self.decision = decision
+        self.reviewer = "console-operator"
 
     def review(self, extraction: Extraction) -> bool:
         # Do not print extracted values: they may contain sensitive document data.
@@ -290,10 +291,10 @@ def _run_real_document(path: Path, args: argparse.Namespace,
     return DocumentPipeline(
         service, ConsoleReviewer(args.decision),
         rules=(
-            RequiredFieldsRule(("invoice_number", "total_amount")),
+            RequiredFieldsRule(("invoice_number", "total_amount", "line_items")),
             NonNegativeNumberRule("total_amount", "non-negative-total"),
             LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),
-            FieldConfidencePolicy(("invoice_number", "total_amount"), 0.85),
+            FieldConfidencePolicy(("invoice_number", "total_amount", "line_items"), 0.85),
         ),
     ).run(document)
 

@@ -84,10 +84,11 @@ and let it sit. Then zoom that single line to fill the frame.
 > quantity times unit price across every row and compares it to the total.
 > They disagree, so it refuses to auto-approve and routes it to a human.
 >
-> Free-form OCR cannot make that check. Text has no arithmetic. You need typed
-> fields — line items as numbers, not as a sentence — and that is what the DWS
-> extraction schema gives you. Every extracted field can be correct and the
-> document can still be internally inconsistent.
+> Free-form OCR alone does not provide the typed line-item structure needed for
+> a deterministic arithmetic check. You need typed fields — line items as
+> numbers, not as a sentence — and that is what the DWS extraction schema gives
+> you. Every extracted field can be correct and the document can still be
+> internally inconsistent.
 
 **This is the peak of the video.** Everything before it sets it up; everything
 after it is consequence. If a shot has to be cut for time, it is never this one.
@@ -99,7 +100,7 @@ after it is consequence. If a shot has to be cut for time, it is never this one.
 **On screen:** clear the terminal. Then:
 
 ```sh
-unset NUTRIENT_EXTRACTION_API_KEY      # on screen, deliberately
+Remove-Item Env:NUTRIENT_EXTRACTION_API_KEY -ErrorAction SilentlyContinue
 python -m trustdocs.cli verify docs/evidence/rejected.json
 ```
 
@@ -129,7 +130,10 @@ video. Do not skip it for time — cut narration elsewhere instead.
 
 ## Shot 5 — The real service · 2:20–2:45
 
-**On screen:**
+**On screen:** the real GUI, not a fixture. Select `sample/invoice.pdf`, choose
+`nutrient`, click **Process**, then open the **Extraction** tab. Hold long enough
+to show a real field's confidence and its citation/page/source location. Then
+switch to a terminal and run:
 
 ```sh
 python -m trustdocs.cli process sample/invoice.pdf --decision approve
@@ -138,8 +142,10 @@ python -m trustdocs.cli verify sample/invoice.pdf.evidence.json
 
 **Narration:**
 
-> Everything so far ran offline against fixtures. This is the real Nutrient
-> endpoint, on a real PDF, producing evidence that verifies the same way.
+> Everything so far ran offline against fixtures. This is a real PDF through
+> the real Nutrient endpoint. DWS returns typed fields with confidence and
+> source-grounded citations; then the same deterministic policy and evidence
+> chain run over that output. The resulting evidence verifies the same way.
 > Continuous integration runs the whole unit suite with no API key, so anyone
 > can reproduce the build; the live test ships with the repo and skips itself
 > when there is no key.
@@ -193,6 +199,7 @@ no role in production. If there is spare time at the end, the finished video can
 be fed to it as a LangBuster program — a closing curiosity for the write-up, not
 part of the deliverable.
 
-**Cut order if running long:** Shot 5 first (the README covers it), then
-narration in Shot 2, then the Shot 1 abstraction. Shots 3 and 4 are the
+**Cut order if running long:** never cut Shot 5: it is the proof that Nutrient
+DWS performs the core document operation. Cut the Shot 1 abstraction first,
+then Shot 6 narration, then compress Shot 2. Shots 3, 4 and 5 are the
 submission.

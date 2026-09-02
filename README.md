@@ -13,7 +13,7 @@ declared. Real output, no API key.*
 | | |
 |---|---|
 | Offline demos | ✅ No API key needed |
-| Core tests | ✅ 154/154 passing |
+| Core tests | ✅ 156/156 passing |
 | Live integration | ✅ Skips without credentials |
 | Honest confidence gate | ✅ Per-field, no aggregate invented |
 | Human review basis | ✅ Review record hashed into the chain |
@@ -289,10 +289,11 @@ for why that is the thing that makes this a business.
 `line-items-reconcile` computes `Σ(quantity × unit_price)` and compares it to
 the stated total.
 
-Free-form OCR cannot do this. It returns text, and text has no arithmetic. You
-need **typed fields with declared types** — `line_items` as an array of objects
-with numeric `quantity` and `unit_price`, `total_amount` as a number — which is
-exactly what the DWS extraction schema provides.
+Free-form OCR alone does not provide the typed line-item structure needed for a
+deterministic arithmetic check. You need **typed fields with declared types** —
+`line_items` as an array of objects with numeric `quantity` and `unit_price`,
+`total_amount` as a number — which is exactly what the DWS extraction schema
+provides.
 
 This is the concrete argument for typed extraction over dumping a page into an
 LLM and hoping: a schema lets you write rules that catch documents where every

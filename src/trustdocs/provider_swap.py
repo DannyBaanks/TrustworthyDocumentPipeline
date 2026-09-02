@@ -14,7 +14,12 @@ from .evidence import write_record
 from .local_adapter import LocalHeuristicAdapter
 from .pipeline import Document, DocumentPipeline
 from .render import BOLD, DIM, GREEN, RESET, supports_color
-from .validation import NonNegativeNumberRule, RequiredFieldsRule
+from .validation import (
+    FieldConfidencePolicy,
+    LineItemsConsistentRule,
+    NonNegativeNumberRule,
+    RequiredFieldsRule,
+)
 
 
 class _FakeDWSAdapter:
@@ -27,6 +32,9 @@ class _FakeDWSAdapter:
             fields={
                 "invoice_number": FieldValue("INV-2024-001", 0.97, {"source": "dws"}),
                 "total_amount": FieldValue(125.0, 0.95, {"source": "dws"}),
+                "line_items": FieldValue([
+                    {"description": "Service", "quantity": 1, "unit_price": 125.0, "total": 125.0},
+                ], 0.96, {"source": "dws"}),
                 "vendor": FieldValue("Acme Corp", 0.88, {"source": "dws"}),
             },
             document_confidence=0.92,
@@ -68,8 +76,12 @@ def run_provider_swap() -> dict:
     doc = Document(content, "invoice.pdf", "application/pdf")
     doc_hash = hashlib.sha256(content).hexdigest()
 
-    rules = (RequiredFieldsRule(("invoice_number", "total_amount")),
-             NonNegativeNumberRule("total_amount", "non-negative-total"))
+    rules = (
+        RequiredFieldsRule(("invoice_number", "total_amount", "line_items")),
+        NonNegativeNumberRule("total_amount", "non-negative-total"),
+        LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),
+        FieldConfidencePolicy(("invoice_number", "total_amount", "line_items"), 0.85),
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # ── DWS Path ───────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ class ReviewRecord:
     extraction_hash: str
 
     @classmethod
-    def create(cls, *, extraction_hash: str, reviewer: str = "system",
+    def create(cls, *, extraction_hash: str, reviewer: str = "unattributed",
                decision: str, reason_code: str) -> ReviewRecord:
         return cls(
             review_id=uuid.uuid4().hex,
@@ -166,21 +166,26 @@ class DocumentPipeline:
                 or any(f.status == "WARNING" for f in findings)
             )
 
-        review_record: ReviewRecord | None = None
         extraction_hash = _digest(asdict(extraction))
-
         approved = self.reviewer.review(extraction) if reviewed else True
+        review_record = (
+            ReviewRecord.create(
+                extraction_hash=extraction_hash,
+                reviewer=getattr(self.reviewer, "reviewer", "unattributed"),
+                decision="APPROVED" if approved else "REJECTED",
+                reason_code=(
+                    "human-approved-extraction"
+                    if approved else "human-rejected-extraction"
+                ),
+            )
+            if reviewed else None
+        )
         if not approved:
             status = "REJECTED"
             reason = "human review rejected extraction"
         elif reviewed:
             status = "APPROVED_BY_HUMAN"
             reason = "human review approved extraction"
-            review_record = ReviewRecord.create(
-                extraction_hash=extraction_hash,
-                decision="APPROVED",
-                reason_code="human-approved-extraction",
-            )
         else:
             status = "AUTO_APPROVED"
             reason = "confidence and validation policy passed"
@@ -199,6 +204,7 @@ class DocumentPipeline:
             "status": status,
             "reviewed": reviewed,
             "approved": approved,
+            "review_hash": review_record.content_hash() if review_record else None,
         })
         evidence = EvidenceRecord.create(
             document_hash=document_hash,
@@ -209,7 +215,7 @@ class DocumentPipeline:
             decision=status,
             field_count=len(extraction.fields),
             reviewed=reviewed,
-            review_hash=review_record.content_hash() if review_record else None,
+            review=review_record.to_dict() if review_record else None,
         )
         unsigned = {
             "document_sha256": document_hash,

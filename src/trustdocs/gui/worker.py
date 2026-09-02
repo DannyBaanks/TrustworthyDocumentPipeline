@@ -89,10 +89,10 @@ class PipelineWorker(QObject):
             reviewer = _AutoReviewer(self._decision)
 
             rules = (
-                RequiredFieldsRule(("invoice_number", "total_amount")),
+                RequiredFieldsRule(("invoice_number", "total_amount", "line_items")),
                 NonNegativeNumberRule("total_amount", "non-negative-total"),
                 LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),
-                FieldConfidencePolicy(("invoice_number", "total_amount"), 0.85),
+                FieldConfidencePolicy(("invoice_number", "total_amount", "line_items"), 0.85),
             )
 
             trace.append("Running pipeline...")
@@ -146,6 +146,7 @@ class _AutoReviewer:
 
     def __init__(self, forced_decision: str | None = None):
         self._forced = forced_decision
+        self.reviewer = "gui-operator"
 
     def review(self, extraction: Extraction) -> bool:
         if self._forced == "reject":

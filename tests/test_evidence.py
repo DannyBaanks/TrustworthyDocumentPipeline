@@ -57,6 +57,50 @@ class EvidenceTests(unittest.TestCase):
             write_record(path, record)
             self.assertEqual(read_record(path).verify(), (True, []))
 
+    def test_review_record_round_trips_with_its_preimage(self) -> None:
+        review = {
+            "review_id": "review-1",
+            "timestamp": "2026-09-02T12:00:00+00:00",
+            "reviewer": "accounts-payable",
+            "decision": "REJECTED",
+            "reason_code": "human-rejected-extraction",
+            "extraction_hash": "extract",
+        }
+        record = EvidenceRecord.create(
+            document_hash="doc", operation="extract", configuration={},
+            extraction_hash="extract", decision_hash="decision", decision="REJECTED",
+            field_count=1, reviewed=True, review=review,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence.json"
+            write_record(path, record)
+            loaded = read_record(path)
+        self.assertEqual(loaded.review, review)
+        self.assertEqual(loaded.verify(), (True, []))
+
+    def test_tampered_review_preimage_is_invalid(self) -> None:
+        review = {
+            "review_id": "review-1",
+            "timestamp": "2026-09-02T12:00:00+00:00",
+            "reviewer": "accounts-payable",
+            "decision": "REJECTED",
+            "reason_code": "human-rejected-extraction",
+            "extraction_hash": "extract",
+        }
+        record = EvidenceRecord.create(
+            document_hash="doc", operation="extract", configuration={},
+            extraction_hash="extract", decision_hash="decision", decision="REJECTED",
+            field_count=1, reviewed=True, review=review,
+        )
+        tampered = {**review, "reviewer": "forged-reviewer"}
+        forged = EvidenceRecord(
+            record.execution_id, record.nodes, record.decision, record.record_sha256, tampered,
+        )
+        valid, errors = forged.verify()
+        self.assertFalse(valid)
+        self.assertIn("review hash mismatch", errors)
+        self.assertIn("record hash mismatch", errors)
+
 
 class EvidenceNodeTests(unittest.TestCase):
     def test_valid_id_for_intact_node(self) -> None:

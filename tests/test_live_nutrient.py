@@ -16,7 +16,12 @@ from pathlib import Path
 
 from trustdocs.nutrient_adapter import NutrientExtractionAdapter
 from trustdocs.pipeline import Document, DocumentPipeline
-from trustdocs.validation import NonNegativeNumberRule, RequiredFieldsRule
+from trustdocs.validation import (
+    FieldConfidencePolicy,
+    LineItemsConsistentRule,
+    NonNegativeNumberRule,
+    RequiredFieldsRule,
+)
 
 SAMPLE_INVOICE = Path(__file__).resolve().parents[1] / "sample" / "invoice.pdf"
 
@@ -38,15 +43,28 @@ class LiveNutrientTests(unittest.TestCase):
         result = DocumentPipeline(
             NutrientExtractionAdapter(), ApproveReviewer(),
             rules=(
-                RequiredFieldsRule(("invoice_number", "total_amount")),
+                RequiredFieldsRule(("invoice_number", "total_amount", "line_items")),
                 NonNegativeNumberRule("total_amount", "non-negative-total"),
+                LineItemsConsistentRule("line_items", "total_amount", "line-items-reconcile"),
+                FieldConfidencePolicy(("invoice_number", "total_amount", "line_items"), 0.85),
             ),
         ).run(document)
-        # The real path has no aggregate document confidence, so the human
-        # review gate always runs; a valid invoice is then approved.
-        self.assertTrue(result.reviewed)
+        # Nutrient returns per-field confidence. The policy auto-approves only
+        # when every required field is known and above threshold; otherwise it
+        # correctly routes the exact extraction state to a reviewer.
+        confidence_gate = next(
+            finding for finding in result.validation
+            if finding.rule_id == "field-confidence-gate"
+        )
+        self.assertEqual(result.reviewed, confidence_gate.status != "PASS")
         self.assertTrue(result.approved)
-        self.assertEqual(result.status, "APPROVED_BY_HUMAN")
+        self.assertEqual(
+            result.status,
+            "AUTO_APPROVED" if confidence_gate.status == "PASS" else "APPROVED_BY_HUMAN",
+        )
+        if result.reviewed:
+            self.assertIsNotNone(result.decision.review)
+            self.assertEqual(result.evidence.review, result.decision.review.to_dict())
         valid, errors = result.evidence.verify()
         self.assertEqual((valid, errors), (True, []))
         print(json.dumps({

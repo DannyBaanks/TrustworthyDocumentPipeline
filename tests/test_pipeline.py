@@ -56,6 +56,12 @@ class PipelineTests(unittest.TestCase):
         )
         self.assertEqual(result.status, "REJECTED")
         self.assertFalse(result.approved)
+        self.assertTrue(result.reviewed)
+        self.assertIsNotNone(result.decision.review)
+        self.assertEqual(result.decision.review.decision, "REJECTED")
+        self.assertEqual(result.decision.review.reason_code, "human-rejected-extraction")
+        self.assertEqual(result.evidence.review, result.decision.review.to_dict())
+        self.assertEqual(result.evidence.verify(), (True, []))
 
 
 if __name__ == "__main__":

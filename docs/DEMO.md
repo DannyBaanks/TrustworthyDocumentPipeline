@@ -33,11 +33,10 @@ python -m trustdocs.cli --demo-inconsistent
 Every field extracted cleanly at high confidence. The line items still do not
 add up to the stated total.
 
-**This is the point of typed extraction.** Free-form OCR returns text, and text
-has no arithmetic. Comparing `Σ(quantity × unit_price)` against the total needs
-line items as *numbers*, which is what the DWS schema provides — and it catches
-the most common shape of invoice fraud: every field individually correct, the
-document as a whole a lie.
+**This is the point of typed extraction.** Free-form OCR alone does not provide
+Comparing `Σ(quantity × unit_price)` against the total needs line items as
+*numbers*, which is what the DWS schema provides. Every individual field can be
+right while the document as a whole is internally inconsistent.
 
 ## 3. Low confidence stops for a human
 

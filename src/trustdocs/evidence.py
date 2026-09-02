@@ -49,12 +49,14 @@ class EvidenceRecord:
     nodes: tuple[EvidenceNode, ...]
     decision: str
     record_sha256: str
+    review: dict[str, object] | None = None
 
     @classmethod
     def create(cls, *, document_hash: str, operation: str, configuration: dict[str, object],
                extraction_hash: str, decision_hash: str, decision: str,
                field_count: int, reviewed: bool,
-               review_hash: str | None = None) -> EvidenceRecord:
+               review: dict[str, object] | None = None) -> EvidenceRecord:
+        review_data = review
         execution_id = _digest({
             "document_hash": document_hash,
             "operation": operation,
@@ -72,34 +74,46 @@ class EvidenceRecord:
         nodes = [document, extraction]
         if reviewed:
             review_metadata: dict[str, object] = {"execution_id": execution_id}
-            if review_hash:
+            review_hash = _digest(review_data) if review_data is not None else None
+            if review_hash is not None:
                 review_metadata["review_hash"] = review_hash
-            review = EvidenceNode.create(
-                "human_review", extraction.output_hash, decision_hash,
+            review_node = EvidenceNode.create(
+                "human_review", extraction.output_hash, review_hash or decision_hash,
                 review_metadata, (extraction.id,),
             )
-            nodes.append(review)
-            parents = [review.id]
+            nodes.append(review_node)
+            parents = [review_node.id]
         decision_node = EvidenceNode.create(
             "decision", ":".join(parents), decision_hash,
             {"decision": decision, "execution_id": execution_id}, tuple(parents),
         )
         nodes.append(decision_node)
-        body = {
-            "execution_id": execution_id,
-            "nodes": [asdict(node) for node in nodes],
-            "decision": decision,
+        record = cls(execution_id, tuple(nodes), decision, "", review_data)
+        return cls(execution_id, tuple(nodes), decision, _digest(record._body()), review_data)
+
+    def _body(self) -> dict[str, object]:
+        body: dict[str, object] = {
+            "execution_id": self.execution_id,
+            "nodes": [asdict(node) for node in self.nodes],
+            "decision": self.decision,
         }
-        return cls(execution_id, tuple(nodes), decision, _digest(body))
+        # Historical v1 evidence did not persist a review preimage. Keep its
+        # original hash contract valid while binding every new ReviewRecord.
+        if self.review is not None:
+            body["review"] = self.review
+        return body
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        value: dict[str, object] = {
             "schema": "trustdocs.evidence/1",
             "execution_id": self.execution_id,
             "nodes": [asdict(node) for node in self.nodes],
             "decision": self.decision,
             "record_sha256": self.record_sha256,
         }
+        if self.review is not None:
+            value["review"] = self.review
+        return value
 
     def verify(self) -> tuple[bool, list[str]]:
         errors: list[str] = []
@@ -110,12 +124,20 @@ class EvidenceRecord:
             for parent_id in node.parent_ids:
                 if parent_id not in ids:
                     errors.append(f"missing parent: {parent_id}")
-        body = {
-            "execution_id": self.execution_id,
-            "nodes": [asdict(node) for node in self.nodes],
-            "decision": self.decision,
-        }
-        if _digest(body) != self.record_sha256:
+        if self.review is not None:
+            review_hash = _digest(self.review)
+            review_nodes = [node for node in self.nodes if node.operation == "human_review"]
+            if len(review_nodes) != 1:
+                errors.append("review record is not linked to exactly one human review node")
+            else:
+                review_node = review_nodes[0]
+                if review_node.metadata.get("review_hash") != review_hash:
+                    errors.append("review hash mismatch")
+                if review_node.output_hash != review_hash:
+                    errors.append("review node output does not match review hash")
+                if self.review.get("extraction_hash") != review_node.input_hash:
+                    errors.append("review record references a different extraction")
+        if _digest(self._body()) != self.record_sha256:
             errors.append("record hash mismatch")
         return not errors, errors
 
@@ -131,4 +153,7 @@ def read_record(path: Path) -> EvidenceRecord:
     if value.get("schema") != "trustdocs.evidence/1":
         raise ValueError("unsupported evidence schema")
     nodes = tuple(EvidenceNode(**node) for node in value["nodes"])
-    return EvidenceRecord(value["execution_id"], nodes, value["decision"], value["record_sha256"])
+    return EvidenceRecord(
+        value["execution_id"], nodes, value["decision"], value["record_sha256"],
+        value.get("review"),
+    )

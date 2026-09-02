@@ -36,7 +36,7 @@ citations:
     "currency": {"type": "string"},
     "total_amount": {"type": "number"},
     "line_items": {"type": "array"}
-  }},
+  }, "required": ["invoice_number", "total_amount", "line_items"]},
   "parseConfig": {"mode": "structure"},
   "options": {"includeCitations": true}
 }

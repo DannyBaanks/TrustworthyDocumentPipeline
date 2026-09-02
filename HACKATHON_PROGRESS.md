@@ -36,7 +36,7 @@ commit hash; nothing is asserted that the repository cannot prove.
 | Attack suite | Aug 21 (`f9388c5`) | 8 scenarios: document swap, extraction tamper, decision forgery, ledger edit/delete/reorder, truncation, anchor detection |
 | Provider swap | Aug 21 (`f9388c5`) | Same document, two extractors, same evidence contract |
 | GUI | Aug 21 (`f9388c5`) | Desktop app wrapping the same pipeline API |
-| CI matrix | Aug 20 (`9174aa5`) | Windows + Linux, Python 3.11/3.12/3.13 |
+| CI matrix | Aug 20 (`9174aa5`) | Windows + Linux, Python 3.11/3.12 |
 | FieldConfidencePolicy | Sep 2 | Per-field threshold gate; no aggregate confidence invented |
 | ReviewRecord | Sep 2 | Human review hash enters the evidence chain |
 | DWS citations | Sep 2 | Per-field confidence + source location shown in GUI |
